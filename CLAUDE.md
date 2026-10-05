@@ -33,10 +33,14 @@ Run `npm run typecheck && npm test` after any change to `src/lib` or `scripts`.
 - **Private metrics expire.** `non_public_metrics`, `organic_metrics` and video quartiles exist only for posts under ~30 days old. API errors for older posts and for retweets on those fields are expected and non-fatal.
 - **Not offered by the API at all:** watch time, followers gained per post, media engagements / detail expands. `link_clicks` exists only for posts with a clickable link or card.
 
+## UI style
+
+All UI follows **DESIGN.md**: the X Developer Console look (console.x.com dark theme - black canvas, floating bordered panels, neutral greys, Inter, white primary buttons, 6/10/14px radii, Sync button in the top bar). Read it before adding or changing any page, component or chart, and reuse the components it lists. Changes to the style go into DESIGN.md first.
+
 ## Methodology (keep consistent)
 
 - Engagement rate = (likes + replies + reposts + quotes + bookmarks) / impressions. Public interactions only, so old posts stay comparable.
-- Originals = `post` + `quote`. Replies and reposts are stored but excluded from baselines, scores and reports.
+- Originals = `post` + `quote` without `article_title`. Replies, reposts and X Articles are stored and browsable but excluded from baselines, scores, reports and post counts (owner's decision, 2026-10-05). Quote posts promoting an article stay in.
 - Reference set for a post: the account's own originals from the 90 days before it (no look-ahead); fallback to all other originals if fewer than 8 (`MIN_REFERENCE`). Nothing is scored with fewer than 8 in total.
 - Robust z-score on log10(impressions + 1): `0.6745 * (x - median) / MAD`. Outliers: z >= 3.5 far above, z >= 2 above, z <= -2 below (`src/lib/analytics/scoring.ts`).
 - Distribution score = percentile of impressions in the reference set. Engagement quality score = equal-weight mean of rate percentiles (like, reply, repost, bookmark, profile visit), unavailable rates left out.
@@ -50,7 +54,7 @@ Pay-per-use: own post read $0.001, other users' posts $0.005, user lookup $0.01;
 
 ## Stack and layout
 
-Next.js 16 App Router, React 19, TypeScript 5.9 (strict), Tailwind 3 (colors as CSS-variable RGB channels in `globals.css`), Recharts 3, better-sqlite3 12 (native, `serverExternalPackages`), tsx for scripts, undici (only when `HTTPS_PROXY` is set).
+Next.js 16 App Router, React 19, TypeScript 5.9 (strict), Tailwind 3 (colors as CSS-variable RGB channels in `globals.css`), Inter + Geist Mono via `next/font/google`, Recharts 3, better-sqlite3 12 (native, `serverExternalPackages`), tsx for scripts, undici (only when `HTTPS_PROXY` is set).
 
 ```
 src/lib/env.ts          .env loader for scripts, credentials, redact()

@@ -7,8 +7,8 @@ import { MATURITY_HOURS, type Post } from "./analytics/types";
 /** Reads everything the dashboard needs in one pass. The data set is small (hundreds of posts). */
 export interface Dataset {
   posts: Post[]; // every stored post, newest first
-  originals: Post[]; // posts + quote posts: the set every analysis runs on
-  account: { username: string | null; name: string | null };
+  originals: Post[]; // posts + quote posts, articles excluded: the set every analysis runs on
+  account: { username: string | null; name: string | null; avatar: string | null };
   followers: AccountSnapshotRow[];
   lastSync: string | null;
   lastRun: SyncRunRow | null;
@@ -45,7 +45,8 @@ export function toPost(r: PostRow): Post {
     engagements: publicEngagements(r),
     ageHours,
     maturing: ageHours < MATURITY_HOURS,
-    isOriginal: r.kind === "post" || r.kind === "quote",
+    isOriginal: (r.kind === "post" || r.kind === "quote") && !r.article_title,
+    isArticle: !!r.article_title,
     score: null,
   };
 }
@@ -74,7 +75,7 @@ export function getDataset(): Dataset {
   return {
     posts,
     originals,
-    account: { username: getMeta("account_username"), name: getMeta("account_name") },
+    account: { username: getMeta("account_username"), name: getMeta("account_name"), avatar: getMeta("account_avatar") },
     followers: db.prepare("SELECT * FROM account_snapshots ORDER BY captured_at").all() as AccountSnapshotRow[],
     lastSync: getMeta("last_successful_sync"),
     lastRun: runs.find((r) => r.mode !== "legacy-import") ?? null,

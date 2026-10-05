@@ -60,7 +60,7 @@ interface TimelinePage {
   meta?: { next_token?: string; result_count?: number };
 }
 interface MeResponse {
-  data: { id: string; username: string; name: string; public_metrics?: Record<string, number> };
+  data: { id: string; username: string; name: string; profile_image_url?: string; public_metrics?: Record<string, number> };
 }
 
 export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
@@ -81,7 +81,7 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
   try {
     client = new XClient({ log, maxRetries: opts.maxRetries, maxRateLimitWaitMs: opts.maxRateLimitWaitMs });
     /* ---------- 1. fetch ---------- */
-    const me = (await client.get<MeResponse>("/users/me", { "user.fields": "public_metrics,created_at" })).data;
+    const me = (await client.get<MeResponse>("/users/me", { "user.fields": "public_metrics,created_at,profile_image_url" })).data;
     log(`authenticated as @${me.username}`);
 
     const tweets = new Map<string, RawTweet>();
@@ -142,6 +142,8 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
     setMeta("account_id", me.id);
     setMeta("account_username", me.username);
     setMeta("account_name", me.name);
+    // Extra field on the existing /users/me request: no additional API cost.
+    setMeta("account_avatar", me.profile_image_url ?? null);
     setMeta("last_successful_sync", capturedAt);
     if (mode === "full") setMeta("last_full_sync", capturedAt);
 

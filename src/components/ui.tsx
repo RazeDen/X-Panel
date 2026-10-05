@@ -3,65 +3,78 @@ import type { ReactNode } from "react";
 import { fmtDelta } from "@/lib/format";
 import { MIN_SAMPLE } from "@/lib/analytics/types";
 
-export function PageHeader({ title, subtitle, children }: { title: string; subtitle?: ReactNode; children?: ReactNode }) {
+/**
+ * Page heading in the Developer Console style ("Hello, RazeDen"): medium-weight title, muted subtitle,
+ * actions on the right, and an optional underline tab bar (UrlTabs variant="underline") below.
+ */
+export function PageHeader({ title, subtitle, children, tabs }: { title: string; subtitle?: ReactNode; children?: ReactNode; tabs?: ReactNode }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-ink">{title}</h1>
-        {subtitle && <p className="mt-1 max-w-3xl text-[13px] leading-5 text-muted">{subtitle}</p>}
+    <div className="mb-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-[22px] font-medium leading-7 tracking-tight text-ink">{title}</h1>
+          {subtitle && <p className="mt-1 max-w-3xl text-[13px] leading-5 text-ink2">{subtitle}</p>}
+        </div>
+        {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
       </div>
-      {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
+      {tabs && <div className="mt-4 border-b border-line">{tabs}</div>}
     </div>
   );
 }
 
+/** Card: title and a short muted description on one line ("Usage  Billable events, ..."), action on the right. */
 export function Card({ title, subtitle, action, children, className = "", pad = true }: {
   title?: ReactNode; subtitle?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; pad?: boolean;
 }) {
   return (
     <section className={`card ${className}`}>
       {(title || action) && (
-        <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-          <div>
-            <h2 className="text-[13px] font-semibold text-ink">{title}</h2>
-            {subtitle && <p className="mt-0.5 text-xs leading-4 text-muted">{subtitle}</p>}
+        <header className="flex items-start justify-between gap-3 px-5 pt-5">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+            <h2 className="text-[14px] font-semibold leading-5 text-ink">{title}</h2>
+            {subtitle && <p className="text-[12px] leading-4 text-muted">{subtitle}</p>}
           </div>
           {action}
         </header>
       )}
-      <div className={pad ? "p-4" : ""}>{children}</div>
+      <div className={pad ? (title || action ? "p-5 pt-4" : "p-5") : title || action ? "pt-4" : ""}>{children}</div>
     </section>
   );
 }
 
-/** Signed change with an arrow, so direction never relies on color alone. */
+/** Change as an arrow plus magnitude ("↑227%"), so direction never relies on color alone. */
 export function Delta({ value, suffix, invert = false }: { value: number | null | undefined; suffix?: string; invert?: boolean }) {
   if (value === null || value === undefined || !Number.isFinite(value)) {
-    return <span className="text-xs text-muted">no comparison{suffix ? ` ${suffix}` : ""}</span>;
+    return <span className="text-[12px] text-muted">no comparison{suffix ? ` ${suffix}` : ""}</span>;
   }
   const flat = Math.abs(value) < 0.005;
   const up = value > 0;
   const good = invert ? !up : up;
   return (
-    <span className={`num inline-flex items-center gap-1 text-xs ${flat ? "text-muted" : good ? "text-good" : "text-bad"}`}>
-      <span aria-hidden>{flat ? "→" : up ? "▲" : "▼"}</span>
-      {fmtDelta(value)}
+    <span className="num inline-flex items-baseline gap-1.5 text-[12px]">
+      <span className={`font-medium ${flat ? "text-muted" : good ? "text-good" : "text-bad"}`} title={fmtDelta(value)}>
+        <span aria-hidden>{flat ? "→" : up ? "↑" : "↓"}</span>{fmtDelta(Math.abs(value)).replace(/^\+/, "")}
+      </span>
       {suffix && <span className="text-muted">{suffix}</span>}
     </span>
   );
 }
 
+/** Console metric tile ("Total Balance $19.81"): small grey label, large semibold number, change and context below. */
 export function StatCard({ label, value, delta, deltaLabel, sub, hint }: {
   label: string; value: string; delta?: number | null; deltaLabel?: string; sub?: ReactNode; hint?: string;
 }) {
+  const empty = value === "—" || value === "0";
   return (
     <div className="card card-pad" title={hint}>
       <div className="label">{label}</div>
-      <div className="num mt-1.5 text-2xl font-semibold tracking-tight text-ink">{value}</div>
-      <div className="mt-1.5 flex min-h-4 flex-wrap items-center gap-x-2 gap-y-0.5">
-        {delta !== undefined && <Delta value={delta} suffix={deltaLabel} />}
-        {sub && <span className="text-xs text-muted">{sub}</span>}
-      </div>
+      <div className={`num mt-1.5 text-[26px] font-semibold leading-8 tracking-tight ${empty ? "text-muted" : "text-ink"}`}>{value}</div>
+      {(delta !== undefined || sub) && (
+        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px] leading-4 text-muted">
+          {delta !== undefined && <Delta value={delta} suffix={deltaLabel} />}
+          {sub && <span>{sub}</span>}
+        </div>
+      )}
     </div>
   );
 }
@@ -85,9 +98,9 @@ export function Chip({ children, href, tone }: { children: ReactNode; href?: str
 export function Notice({ tone = "info", title, children }: { tone?: "info" | "warn" | "error"; title?: string; children: ReactNode }) {
   const cls = tone === "error" ? "border-bad/40 bg-bad/5" : tone === "warn" ? "border-warn/30 bg-warn/5" : "border-line bg-surface";
   const icon = tone === "error" ? "✖" : tone === "warn" ? "⚠" : "ℹ";
-  const iconCls = tone === "error" ? "text-bad" : tone === "warn" ? "text-warn" : "text-muted";
+  const iconCls = tone === "error" ? "text-bad" : tone === "warn" ? "text-warn" : "text-accent";
   return (
-    <div className={`flex gap-2.5 rounded-lg border px-3.5 py-2.5 text-[13px] leading-5 text-ink2 ${cls}`}>
+    <div className={`flex gap-2.5 rounded-[10px] border px-4 py-3 text-[13px] leading-5 text-ink2 ${cls}`}>
       <span aria-hidden className={`mt-px ${iconCls}`}>{icon}</span>
       <div>
         {title && <div className="font-medium text-ink">{title}</div>}
@@ -98,7 +111,7 @@ export function Notice({ tone = "info", title, children }: { tone?: "info" | "wa
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <div className="rounded-md border border-dashed border-line px-4 py-8 text-center text-[13px] text-muted">{children}</div>;
+  return <div className="hatch rounded-[10px] border border-line px-4 py-10 text-center text-[13px] text-muted">{children}</div>;
 }
 
 export function EmptyDatabase() {
@@ -108,7 +121,7 @@ export function EmptyDatabase() {
       <p className="mt-2 text-[13px] leading-5 text-muted">
         The database is empty. Run the first sync from a terminal in the project folder, then reload this page.
       </p>
-      <pre className="mt-4 rounded-md border border-line bg-raised px-3 py-2 text-left font-mono text-xs text-ink2">npm run sync</pre>
+      <pre className="mt-4 rounded-control border border-line bg-sunken px-3 py-2 text-left font-mono text-xs text-ink2">npm run sync</pre>
     </div>
   );
 }

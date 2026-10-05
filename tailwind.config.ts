@@ -7,8 +7,10 @@ const config: Config = {
       colors: {
         page: "rgb(var(--c-page) / <alpha-value>)",
         surface: "rgb(var(--c-surface) / <alpha-value>)",
+        sunken: "rgb(var(--c-sunken) / <alpha-value>)",
         raised: "rgb(var(--c-raised) / <alpha-value>)",
         line: "rgb(var(--c-line) / <alpha-value>)",
+        "line-strong": "rgb(var(--c-line-strong) / <alpha-value>)",
         ink: "rgb(var(--c-ink) / <alpha-value>)",
         ink2: "rgb(var(--c-ink-2) / <alpha-value>)",
         muted: "rgb(var(--c-muted) / <alpha-value>)",
@@ -18,9 +20,12 @@ const config: Config = {
         warn: "rgb(var(--c-warn) / <alpha-value>)",
       },
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
-        mono: ["ui-monospace", "SFMono-Regular", "Cascadia Code", "Consolas", "monospace"],
+        // Same pairing as the X Developer Console: Inter + Geist Mono (loaded with next/font in layout.tsx).
+        sans: ["var(--font-inter)", "Inter", "Segoe UI", "Arial", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "Geist Mono", "Cascadia Code", "Consolas", "monospace"],
       },
+      borderRadius: { panel: "14px", control: "6px" },
+      transitionTimingFunction: { console: "cubic-bezier(0.16, 1, 0.3, 1)" },
     },
   },
   plugins: [],

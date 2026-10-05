@@ -47,7 +47,7 @@ export function reportToMarkdown(r: WeeklyReport, aiAnalysis?: string | null): s
   const s = r.summary;
   return `# Week ${r.week.week}, ${r.week.year} - ${r.week.label}
 
-Generated ${r.generatedAt}. Original posts only (replies and reposts excluded). Times in Europe/Warsaw.
+Generated ${r.generatedAt}. Original posts only (replies, reposts and articles excluded). Times in Europe/Warsaw.
 ${r.warnings.map((w) => `\n> Note: ${w}`).join("")}
 
 ## Headline

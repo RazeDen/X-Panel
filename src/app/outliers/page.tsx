@@ -98,7 +98,7 @@ export default async function OutliersPage({ searchParams }: { searchParams: Pro
       {posts.length - scored.length > 0 && <div className="mb-4"><Notice>{posts.length - scored.length} post(s) in this range could not be scored (no impression count, or fewer than {MIN_REFERENCE} posts to compare with).</Notice></div>}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <Card title="Reach against engagement quality" subtitle="Each dot is a post. Right = more reach than usual; up = more interaction per impression than usual. Green = outlier above baseline, orange = below. Click a dot to open the post.">
+        <Card title="Reach against engagement quality" subtitle="Each dot is a post. Right = more reach than usual; up = more interaction per impression than usual. Green = outlier above baseline, red = below, blue = within the usual range. Click a dot to open the post.">
           <QuadrantChart points={points} />
           <div className="mt-1 grid grid-cols-2 gap-x-4 text-[11px] leading-4 text-muted">
             <span>Top-left: engaged readers, low distribution.</span><span className="text-right">Top-right: strong on both.</span>

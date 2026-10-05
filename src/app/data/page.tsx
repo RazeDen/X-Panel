@@ -25,7 +25,7 @@ export default function DataPage() {
   const db = getDb();
   const caps = [...ds.capabilities].sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key));
   const kinds = db.prepare("SELECT kind, COUNT(*) AS n FROM posts GROUP BY kind").all() as { kind: string; n: number }[];
-  const sources = db.prepare("SELECT COALESCE(class_source, 'none') AS s, COUNT(*) AS n FROM posts WHERE kind IN ('post','quote') GROUP BY 1").all() as { s: string; n: number }[];
+  const sources = db.prepare("SELECT COALESCE(class_source, 'none') AS s, COUNT(*) AS n FROM posts WHERE kind IN ('post','quote') AND article_title IS NULL GROUP BY 1").all() as { s: string; n: number }[];
   const reports = (db.prepare("SELECT COUNT(*) AS n FROM weekly_reports").get() as { n: number }).n;
   const ai = aiAvailable();
 
@@ -104,7 +104,7 @@ export default function DataPage() {
 
       <Card className="mt-4" title="Methodology">
         <div className="grid gap-x-8 gap-y-4 text-[13px] leading-5 text-ink2 md:grid-cols-2">
-          <div><h3 className="mb-1 font-medium text-ink">What counts as a post</h3><p>Analysis covers original posts and quote posts. Replies and reposts are stored and browsable but excluded from baselines, scores and reports - their reach is not comparable.</p></div>
+          <div><h3 className="mb-1 font-medium text-ink">What counts as a post</h3><p>Analysis covers original posts and quote posts. Replies, reposts and X Articles are stored and browsable but excluded from baselines, scores, reports and post counts - their reach is not comparable. Quote posts that promote an article are counted as posts.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Median vs average</h3><p>Reach is heavy-tailed: one viral post can multiply the average while most posts did not change. The median (the middle post) is the headline everywhere; averages are shown beside it for contrast.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Rates</h3><p>Every rate is per impression. Engagement rate = (likes + replies + reposts + quotes + bookmarks) / impressions. A rate is blank when impressions are zero or the metric is unavailable - never zero by default. Group rates are medians of per-post rates.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Baselines</h3><p>Rolling windows of 7, 30 and 90 days plus all time. Weekly reports compare a week with the previous week and with the 30 days before it. Every comparison shows its sample size; groups under {MIN_SAMPLE} posts are marked low sample.</p></div>

@@ -12,8 +12,8 @@ import { BarsChart } from "@/components/charts";
 import { MIN_SAMPLE } from "@/lib/analytics/types";
 
 export const dynamic = "force-dynamic";
-/** Sequential blue ramp for the dark surface: more impressions = lighter. */
-const RAMP = ["#0d366b", "#104281", "#184f95", "#1c5cab", "#256abf", "#2a78d6", "#3987e5", "#5598e7"];
+/** Sequential ramp from the X blue scale (--x-blue-050 ... 700): more impressions = lighter. */
+const RAMP = ["#00154a", "#003886", "#005ac2", "#006fd6", "#0083eb", "#1d9bf0", "#43b3f6", "#6bc9fb"];
 
 export default async function TimingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ds = getDataset();

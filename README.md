@@ -96,7 +96,7 @@ One SQLite file: `data/analytics.db`. Tables:
 
 A metric X does not return is stored as `NULL` and shown as a dash. It is never turned into 0. Posts and snapshots are never deleted: a post that stops appearing in the API is only flagged (`missing_since`).
 
-Original posts and quote posts are analysed. Replies and reposts are stored and can be browsed, but they are excluded from baselines, scores and reports because their reach is not comparable.
+Original posts and quote posts are analysed. Replies, reposts and X Articles (long-form posts, `article_title` set) are stored and can be browsed (Posts page, "Kind" filter), but they are excluded from baselines, scores, reports and post counts because their reach is not comparable. Quote posts that promote an article are ordinary posts and stay in.
 
 ## What X returns (capability report)
 

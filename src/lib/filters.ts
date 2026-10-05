@@ -13,7 +13,7 @@ export interface Filters {
   hook: string | null;
   minImp: number | null;
   q: string | null;
-  kind: "original" | "all" | "reply" | "repost";
+  kind: "original" | "all" | "reply" | "repost" | "article";
   dow: string | null; // Mon..Sun
   slot: string | null; // time bucket label, e.g. 18:00-21:00
 }
@@ -48,7 +48,7 @@ export function parseFilters(params: Params, defaults: Partial<Filters> = {}): F
     hook: get(params, "hook"),
     minImp: Number.isFinite(min) && min > 0 ? min : null,
     q: get(params, "q"),
-    kind: (["original", "all", "reply", "repost"].includes(kind ?? "") ? kind : defaults.kind ?? "original") as Filters["kind"],
+    kind: (["original", "all", "reply", "repost", "article"].includes(kind ?? "") ? kind : defaults.kind ?? "original") as Filters["kind"],
     dow: get(params, "dow"),
     slot: get(params, "slot"),
   };
@@ -78,6 +78,7 @@ export function applyFilters(posts: Post[], f: Filters, now: Date = new Date()):
     if (f.kind === "original" && !p.isOriginal) return false;
     if (f.kind === "reply" && p.kind !== "reply") return false;
     if (f.kind === "repost" && p.kind !== "repost") return false;
+    if (f.kind === "article" && !p.isArticle) return false;
     if (!inWindow(p, start, end)) return false;
     if (f.topic && (p.topic ?? "Untagged") !== f.topic) return false;
     if (f.format && (p.format ?? "Untagged") !== f.format) return false;

@@ -69,7 +69,7 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
         <a href={post.url} target="_blank" rel="noreferrer" className="btn">Open on X &#8599;</a>
       </PageHeader>
 
-      {!post.isOriginal && <div className="mb-4"><Notice>This is a {post.kind}. Replies and reposts are stored but not included in baselines, scores or reports.</Notice></div>}
+      {!post.isOriginal && <div className="mb-4"><Notice>This is {post.isArticle ? "an article" : `a ${post.kind}`}. Replies, reposts and articles are stored but not included in baselines, scores or reports.</Notice></div>}
       {post.maturing && <div className="mb-4"><Notice tone="warn">Published {Math.max(0, Math.round(post.ageHours))}h before the last sync. Numbers are still accumulating - comparisons against older posts understate this one.</Notice></div>}
       {post.missing_since && <div className="mb-4"><Notice tone="warn">X stopped returning this post on {formatDateTime(post.missing_since)} (deleted or unavailable). Its stored history is kept.</Notice></div>}
       {post.impressions === null && post.kind !== "repost" && <div className="mb-4"><Notice tone="warn">X did not return an impression count for this post, so rates and scores cannot be calculated.</Notice></div>}

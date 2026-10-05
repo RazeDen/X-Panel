@@ -26,7 +26,7 @@ export function dataWarnings(ds: Dataset, now: Date = new Date()): Warning[] {
 
   const snap = getDb().prepare(
     `SELECT COUNT(*) AS posts, SUM(CASE WHEN c < 2 THEN 1 ELSE 0 END) AS single FROM (
-       SELECT p.id, COUNT(s.id) AS c FROM posts p LEFT JOIN metric_snapshots s ON s.post_id = p.id WHERE p.kind IN ('post','quote') GROUP BY p.id)`
+       SELECT p.id, COUNT(s.id) AS c FROM posts p LEFT JOIN metric_snapshots s ON s.post_id = p.id WHERE p.kind IN ('post','quote') AND p.article_title IS NULL GROUP BY p.id)`
   ).get() as { posts: number; single: number | null };
   if (snap.posts && (snap.single ?? 0) > 0) {
     out.push({ level: "info", title: "Limited history", detail: `${snap.single} of ${snap.posts} posts have a single snapshot, so no growth curve yet. Curves build up as syncs repeat; early-hours data for older posts was never collected and cannot be recovered.` });

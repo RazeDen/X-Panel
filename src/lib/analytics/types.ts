@@ -18,8 +18,10 @@ export interface Post extends Omit<PostRow, "media_types" | "external_urls"> {
   ageHours: number;
   /** Younger than 48h at the last sync: numbers are still moving. */
   maturing: boolean;
-  /** True for the account's own content (posts and quote posts); replies and reposts are excluded from analysis. */
+  /** True for the account's own content (posts and quote posts); replies, reposts and articles are excluded from analysis. */
   isOriginal: boolean;
+  /** X Article (long-form). Stored and browsable, never counted as a post. */
+  isArticle: boolean;
   score: PostScore | null;
 }
 

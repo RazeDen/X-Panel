@@ -65,10 +65,10 @@ export function FilterBar({ show, options, defaultRange = "30d", windowLabel, co
   return (
     <div className={`mb-4 flex flex-wrap items-center gap-2 ${pending ? "opacity-70" : ""}`}>
       {has("range") && (
-        <div className="inline-flex overflow-hidden rounded-md border border-line" role="group" aria-label="Date range">
+        <div className="seg" role="group" aria-label="Date range">
           {RANGES.map((r) => (
-            <button key={r.key} type="button" onClick={() => set({ range: r.key, week: null, from: null, to: null })}
-              className={`px-2.5 py-1.5 text-xs transition-colors ${!custom && range === r.key ? "bg-raised font-medium text-ink" : "bg-surface text-muted hover:text-ink"}`}>
+            <button key={r.key} type="button" aria-pressed={!custom && range === r.key} onClick={() => set({ range: r.key, week: null, from: null, to: null })}
+              className={`seg-item ${!custom && range === r.key ? "seg-active" : ""}`}>
               {r.label}
             </button>
           ))}
@@ -91,6 +91,7 @@ export function FilterBar({ show, options, defaultRange = "30d", windowLabel, co
           <option value="original">Original posts</option>
           <option value="reply">Replies</option>
           <option value="repost">Reposts</option>
+          <option value="article">Articles</option>
           <option value="all">Everything</option>
         </select>
       )}
@@ -110,15 +111,33 @@ export function FilterBar({ show, options, defaultRange = "30d", windowLabel, co
   );
 }
 
-/** Segmented control bound to a URL parameter. */
-export function UrlTabs({ param, options, fallback }: { param: string; options: { key: string; label: string }[]; fallback: string }) {
+/**
+ * Choice bound to a URL parameter. "pills" renders the console segmented control (small toggles),
+ * "underline" a tab bar with a white indicator (switching between sections, inside PageHeader tabs).
+ */
+export function UrlTabs({ param, options, fallback, variant = "pills" }: { param: string; options: { key: string; label: string }[]; fallback: string; variant?: "pills" | "underline" }) {
   const { params, set } = useUrlState();
   const current = params.get(param) ?? fallback;
+  const pick = (key: string) => set({ [param]: key === fallback ? null : key });
+  if (variant === "underline") {
+    return (
+      <div className="flex overflow-x-auto" role="tablist">
+        {options.map((o) => (
+          <button key={o.key} type="button" role="tab" aria-selected={current === o.key} onClick={() => pick(o.key)}
+            className="whitespace-nowrap px-3 text-[13px] transition-colors first:pl-0">
+            <span className={`relative inline-block py-2.5 ${current === o.key ? "font-medium text-ink" : "text-ink2 hover:text-ink"}`}>
+              {o.label}
+              {current === o.key && <span className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-ink" />}
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+  }
   return (
-    <div className="inline-flex overflow-hidden rounded-md border border-line" role="group">
+    <div className="seg" role="group">
       {options.map((o) => (
-        <button key={o.key} type="button" onClick={() => set({ [param]: o.key === fallback ? null : o.key })}
-          className={`px-2.5 py-1.5 text-xs transition-colors ${current === o.key ? "bg-raised font-medium text-ink" : "bg-surface text-muted hover:text-ink"}`}>
+        <button key={o.key} type="button" aria-pressed={current === o.key} onClick={() => pick(o.key)} className={`seg-item ${current === o.key ? "seg-active" : ""}`}>
           {o.label}
         </button>
       ))}

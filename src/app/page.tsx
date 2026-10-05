@@ -77,7 +77,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
 
   return (
     <>
-      <PageHeader title="Overview" subtitle={<>Original posts by @{ds.account.username}. Replies and reposts are stored but excluded from every number here. {ds.lastSync && <>Last synced {formatDateTime(ds.lastSync)}.</>}</>} />
+      <PageHeader title="Overview" subtitle={<>Original posts by @{ds.account.username}. Replies, reposts and articles are stored but excluded from every number here. {ds.lastSync && <>Last synced {formatDateTime(ds.lastSync)}.</>}</>} />
       <FilterBar show={["range"]} defaultRange="7d" windowLabel={win.label} count={`${win.label} · ${posts.length} posts`} />
       {maturing > 0 && <div className="mb-4"><Notice tone="warn">{maturing} post{maturing > 1 ? "s" : ""} in this range {maturing > 1 ? "were" : "was"} published less than 48h before the last sync. Their numbers are still growing, so period comparisons understate them.</Notice></div>}
 

@@ -85,7 +85,7 @@ async function main() {
 
   // 9. validate against the database before saving
   const check = db.prepare(
-    `SELECT COUNT(*) AS n, COALESCE(SUM(impressions),0) AS imp FROM posts WHERE kind IN ('post','quote')`
+    `SELECT COUNT(*) AS n, COALESCE(SUM(impressions),0) AS imp FROM posts WHERE kind IN ('post','quote') AND article_title IS NULL`
   ).get() as { n: number; imp: number };
   const problems: string[] = [];
   if (check.n !== originals.length) problems.push(`post count mismatch (db ${check.n}, loaded ${originals.length})`);

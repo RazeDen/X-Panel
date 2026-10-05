@@ -47,7 +47,7 @@ async function main() {
   const { getDb } = await import("../src/lib/db");
   const { runSync } = await import("../src/lib/x/sync");
   const { XApiError } = await import("../src/lib/x/client");
-  const { loadPosts, getDataset } = await import("../src/lib/data");
+  const { loadPosts, getDataset, toPost } = await import("../src/lib/data");
   const { buildWeeklyReport } = await import("../src/lib/analytics/weekly");
   const { saveClassification } = await import("../src/lib/classify/store");
   const { classifyByRules, deriveFormat } = await import("../src/lib/classify/rules");
@@ -164,6 +164,9 @@ async function main() {
   console.log("Analytics on stored data");
   const { posts, originals } = loadPosts();
   check("originals exclude replies", posts.length === 5 && originals.length === 4);
+  const row = db.prepare("SELECT * FROM posts WHERE x_id='102'").get() as import("../src/lib/db").PostRow;
+  const art = toPost({ ...row, article_title: "Long read" });
+  check("articles are not counted as posts", art.isArticle && !art.isOriginal && toPost(row).isOriginal && applyFilters([art], parseFilters({ kind: "article", range: "all" })).length === 1);
   check("filters: minimum impressions", applyFilters(posts, parseFilters({ min: "1000", range: "all" })).length === 1);
   check("filters: topic", applyFilters(posts, parseFilters({ topic: "My Topic", range: "all" })).length === 1);
   check("filters: text search", applyFilters(posts, parseFilters({ q: "post 102", range: "all" })).length === 1);

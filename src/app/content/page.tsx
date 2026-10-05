@@ -31,9 +31,8 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageHeader title="Content" subtitle="Performance grouped by how posts are tagged. Rates are medians of per-post rates. Groups with fewer than 3 posts are dimmed and marked low sample.">
-        <UrlTabs param="dim" fallback="topic" options={DIMENSIONS.map((d) => ({ key: d.key, label: d.label }))} />
-      </PageHeader>
+      <PageHeader title="Content" subtitle="Performance grouped by how posts are tagged. Rates are medians of per-post rates. Groups with fewer than 3 posts are dimmed and marked low sample."
+        tabs={<UrlTabs variant="underline" param="dim" fallback="topic" options={DIMENSIONS.map((d) => ({ key: d.key, label: d.label }))} />} />
       <FilterBar show={["range", "topic", "format", "ctype", "hook"]} defaultRange="90d" windowLabel={win.label}
         options={{ topic: tags.topic, format: tags.format, ctype: tags.content_type, hook: tags.hook_type }}
         count={`${win.label} · ${posts.length} posts · overall median ${fmtCompact(overall.medianImpressions)} impr., ${fmtRate(overall.medianEngagementRate)} ER`} />

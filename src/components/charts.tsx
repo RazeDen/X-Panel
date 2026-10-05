@@ -18,14 +18,14 @@ export const SERIES_COLORS = ["var(--series-1)", "var(--series-2)", "var(--serie
 export interface ChartRow { label: string; href?: string; note?: string; [key: string]: string | number | null | undefined }
 export interface SeriesDef { key: string; label: string }
 
-const axis = { stroke: "var(--line)", tick: { fill: "var(--muted)", fontSize: 11 }, tickLine: false } as const;
+const axis = { stroke: "var(--line)", tick: { fill: "var(--muted)", fontSize: 11 }, tickLine: false, axisLine: false } as const;
 
 interface TipEntry { dataKey?: string | number; name?: string | number; value?: number | string | null; color?: string; payload?: ChartRow }
 function Tip({ active, payload, label, format, series }: { active?: boolean; payload?: TipEntry[]; label?: string | number; format: ValueFormat; series: SeriesDef[] }) {
   if (!active || !payload?.length) return null;
   const row = payload[0].payload;
   return (
-    <div className="rounded-md border border-line bg-raised px-3 py-2 text-xs shadow-xl">
+    <div className="rounded-[8px] border border-line bg-sunken px-3 py-2 text-xs shadow-[inset_0_1px_0_#ffffff0d,0_2px_8px_#00000080,0_16px_34px_-14px_#000000bf]">
       <div className="mb-1 font-medium text-ink">{row?.label ?? label}</div>
       {payload.map((p, i) => (
         <div key={i} className="flex items-center justify-between gap-4 text-ink2">
@@ -42,9 +42,22 @@ function Tip({ active, payload, label, format, series }: { active?: boolean; pay
   );
 }
 
+/** Console legend ("● Post"): coloured dot + grey label, top-left of the plot. */
 function legend(series: SeriesDef[]) {
   if (series.length < 2) return null;
-  return <Legend verticalAlign="top" align="right" iconType="square" iconSize={8} wrapperStyle={{ fontSize: 11, color: "var(--ink-2)", paddingBottom: 8 }} formatter={(v) => <span style={{ color: "var(--ink-2)" }}>{v}</span>} />;
+  return (
+    <Legend verticalAlign="top" align="left" wrapperStyle={{ paddingBottom: 10 }}
+      content={() => (
+        <div className="flex flex-wrap gap-4">
+          {series.map((s, i) => (
+            <span key={s.key} className="inline-flex items-center gap-1.5 text-[12px] text-ink2">
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: SERIES_COLORS[i] }} />
+              {s.label}
+            </span>
+          ))}
+        </div>
+      )} />
+  );
 }
 
 export function BarsChart({ data, series, format = "compact", height = 220 }: { data: ChartRow[]; series: SeriesDef[]; format?: ValueFormat; height?: number }) {
@@ -60,11 +73,11 @@ export function BarsChart({ data, series, format = "compact", height = 220 }: { 
       <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barCategoryGap="22%" barGap={2}>
         <CartesianGrid vertical={false} stroke="var(--grid)" />
         <XAxis dataKey="label" {...axis} interval="preserveStartEnd" minTickGap={16} />
-        <YAxis {...axis} axisLine={false} width={44} tickFormatter={(v: number) => FORMATTERS[format](v)} allowDecimals={format === "rate"} />
-        <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={<Tip format={format} series={series} />} />
+        <YAxis {...axis} width={44} tickFormatter={(v: number) => FORMATTERS[format](v)} allowDecimals={format === "rate"} />
+        <Tooltip cursor={{ fill: "rgba(231,233,234,0.06)" }} content={<Tip format={format} series={series} />} />
         {legend(series)}
         {series.map((s, i) => (
-          <Bar key={s.key} dataKey={s.key} name={s.label} fill={SERIES_COLORS[i]} radius={[3, 3, 0, 0]} maxBarSize={32} isAnimationActive={false}
+          <Bar key={s.key} dataKey={s.key} name={s.label} fill={SERIES_COLORS[i]} radius={[2, 2, 0, 0]} maxBarSize={40} isAnimationActive={false}
             onClick={open} cursor={clickable ? "pointer" : undefined} />
         ))}
       </BarChart>
@@ -81,7 +94,7 @@ export function LinesChart({ data, series, format = "compact", height = 220, ref
       <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid vertical={false} stroke="var(--grid)" />
         <XAxis dataKey="label" {...axis} interval="preserveStartEnd" minTickGap={24} />
-        <YAxis {...axis} axisLine={false} width={48} tickFormatter={(v: number) => FORMATTERS[format](v)} />
+        <YAxis {...axis} width={48} tickFormatter={(v: number) => FORMATTERS[format](v)} />
         <Tooltip cursor={{ stroke: "var(--muted)", strokeDasharray: "3 3" }} content={<Tip format={format} series={series} />} />
         {legend(series)}
         {reference && <ReferenceLine y={reference.value} stroke="var(--muted)" strokeDasharray="4 4" label={{ value: reference.label, fill: "var(--muted)", fontSize: 10, position: "insideTopRight" }} />}
@@ -105,7 +118,7 @@ export function QuadrantChart({ points, height = 340 }: { points: QuadrantPoint[
         <CartesianGrid stroke="var(--grid)" />
         <XAxis type="number" dataKey="x" domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} {...axis}
           label={{ value: "Distribution score (reach percentile)", position: "insideBottom", offset: -10, fill: "var(--muted)", fontSize: 11 }} />
-        <YAxis type="number" dataKey="y" domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} {...axis} axisLine={false} width={56}
+        <YAxis type="number" dataKey="y" domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} {...axis} width={56}
           label={{ value: "Engagement quality score", angle: -90, position: "insideLeft", offset: 8, style: { textAnchor: "middle" }, fill: "var(--muted)", fontSize: 11 }} />
         <ZAxis range={[70, 70]} />
         <ReferenceLine x={50} stroke="var(--line)" />
@@ -115,7 +128,7 @@ export function QuadrantChart({ points, height = 340 }: { points: QuadrantPoint[
             const p = payload?.[0]?.payload as QuadrantPoint | undefined;
             if (!active || !p) return null;
             return (
-              <div className="max-w-xs rounded-md border border-line bg-raised px-3 py-2 text-xs shadow-xl">
+              <div className="max-w-xs rounded-[8px] border border-line bg-sunken px-3 py-2 text-xs shadow-[inset_0_1px_0_#ffffff0d,0_2px_8px_#00000080,0_16px_34px_-14px_#000000bf]">
                 <div className="mb-1 font-medium text-ink">{p.label}</div>
                 <div className="num text-ink2">Distribution {Math.round(p.x)} &middot; Quality {Math.round(p.y)} &middot; {fmtCompact(p.impressions)} impressions</div>
                 <div className="mt-1 text-muted">Click to open</div>
@@ -127,7 +140,7 @@ export function QuadrantChart({ points, height = 340 }: { points: QuadrantPoint[
           if (p?.id) router.push(`/posts/${p.id}`);
         }}>
           {points.map((p) => (
-            <Cell key={p.id} fill={p.outlier === "below" ? "var(--series-2)" : p.outlier ? "var(--series-3)" : "var(--series-1)"} stroke="var(--surface)" strokeWidth={2} />
+            <Cell key={p.id} fill={p.outlier === "below" ? "var(--bad)" : p.outlier ? "var(--good)" : "var(--series-1)"} stroke="var(--surface)" strokeWidth={2} />
           ))}
         </Scatter>
       </ScatterChart>
