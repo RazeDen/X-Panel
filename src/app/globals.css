@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  /* Tailwind color channels (R G B) so opacity modifiers work */
+  --c-page: 17 17 16;
+  --c-surface: 26 26 25;
+  --c-raised: 35 35 33;
+  --c-line: 47 47 44;
+  --c-ink: 245 244 239;
+  --c-ink-2: 195 194 183;
+  --c-muted: 141 140 130;
+  --c-accent: 57 135 229;
+  --c-good: 53 181 53;
+  --c-bad: 230 103 103;
+  --c-warn: 250 178 25;
+  /* surfaces */
+  --page: #111110;
+  --surface: #1a1a19;
+  --raised: #232321;
+  --line: #2f2f2c;
+  /* text */
+  --ink: #f5f4ef;
+  --ink-2: #c3c2b7;
+  --muted: #8d8c82;
+  /* chart series (fixed order, validated for the dark surface) */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --grid: #2b2b28;
+  /* status - always paired with an icon or label */
+  --good: #35b535;
+  --bad: #e66767;
+  --warn: #fab219;
+}
+
+html, body { background: var(--page); color: var(--ink); }
+body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiased; }
+.num { font-variant-numeric: tabular-nums; }
+::selection { background: rgba(57, 135, 229, 0.35); }
+
+@layer components {
+  .card { @apply rounded-lg border border-line bg-surface; }
+  .card-pad { @apply p-4; }
+  .label { @apply text-[11px] font-medium uppercase tracking-wider text-muted; }
+  .chip { @apply inline-flex items-center gap-1 rounded border border-line bg-raised px-1.5 py-0.5 text-[11px] leading-4 text-ink2 whitespace-nowrap; }
+  .btn { @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-line bg-raised px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-muted disabled:opacity-50; }
+  .btn-primary { @apply border-transparent bg-accent text-white hover:brightness-110; }
+  .input { @apply h-8 rounded-md border border-line bg-raised px-2 text-xs text-ink outline-none placeholder:text-muted focus:border-accent; }
+  .th { @apply px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-muted whitespace-nowrap; }
+  .td { @apply px-3 py-2 text-[13px] text-ink2; }
+  .link { @apply text-accent hover:underline; }
+}
+
+/* thin scrollbars inside tables */
+.scroll-x { overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.recharts-wrapper:focus, .recharts-surface:focus, .recharts-wrapper *:focus { outline: none; }

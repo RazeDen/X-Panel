@@ -1,0 +1,23 @@
+# secrets - never commit
+.env
+.env.*
+!.env.example
+*.pem
+credentials*.json
+
+# local data
+data/*.db
+data/*.db-*
+data/backups/
+
+# build
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+__pycache__/
+
+# OS
+Desktop.ini
+Thumbs.db
