@@ -23,6 +23,8 @@ export interface RawMedia {
   media_key: string;
   type: string;
   duration_ms?: number;
+  preview_image_url?: string;
+  url?: string;
   public_metrics?: Record<string, number>;
   non_public_metrics?: Record<string, number>;
   organic_metrics?: Record<string, number>;
@@ -48,6 +50,7 @@ export interface MappedPost {
   has_link: boolean;
   media_types: string[];
   video_duration_ms: number | null;
+  media_preview: string | null;
   external_urls: string[];
   metrics: MetricValues;
   non_public_available: boolean;
@@ -147,6 +150,8 @@ export function mapTweet(t: RawTweet, includes: RawIncludes, me: { id: string; u
     has_link: external.length > 0,
     media_types: mediaTypes,
     video_duration_ms: videos.length ? num(videos[0].duration_ms) : null,
+    // Videos and GIFs carry preview_image_url, photos carry url.
+    media_preview: media.map((m) => m.preview_image_url ?? m.url).find((u): u is string => !!u) ?? null,
     external_urls: external,
     metrics,
     non_public_available: hasPrivate,

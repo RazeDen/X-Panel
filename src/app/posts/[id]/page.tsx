@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDataset, getSnapshots, tagValues } from "@/lib/data";
+import { getDataset, getSnapshotPoints, getSnapshots, tagValues } from "@/lib/data";
+import { milestones } from "@/lib/analytics/growth";
+import { StatusIcon } from "@/components/StatusIcon";
 import { DEFAULT_CONTENT_TYPES, DEFAULT_FORMATS, DEFAULT_HOOK_TYPES, DEFAULT_TOPICS } from "@/lib/classify/taxonomy";
+import { SERIES } from "@/lib/classify/rules";
 import { median, percentileRank } from "@/lib/stats";
 import { addDays, formatDateTime } from "@/lib/time";
 import { fmtCompact, fmtDuration, fmtInt, fmtMultiple, fmtPercentile, fmtRate, DASH } from "@/lib/format";
@@ -31,6 +34,9 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
   const post = ds.posts.find((p) => p.id === id);
   if (!post) notFound();
   const snaps = getSnapshots(id);
+  // Early growth vs every other original post at the same age (needs snapshots from the first ~day).
+  const early = post.isOriginal ? milestones(post, getSnapshotPoints({ maxAgeHours: 36 }), ds.originals) : [];
+  const ranked = ds.originals.filter((p) => p.rank !== null).length;
   const tags = tagValues(ds.originals);
   const s = post.score;
 
@@ -91,8 +97,8 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
         <div className="space-y-4">
           <Card title="Tags" subtitle="Used for every content breakdown. Type any value to create a new tag.">
             {post.kind === "repost" ? <div className="text-xs text-muted">Reposts are not tagged.</div> : (
-              <TagEditor postId={post.id} source={post.class_source}
-                initial={{ topic: post.topic ?? "", subtopic: post.subtopic ?? "", content_type: post.content_type ?? "", hook_type: post.hook_type ?? "", format: post.format ?? "", is_news: post.is_news === null ? null : !!post.is_news }}
+              <TagEditor postId={post.id} source={post.class_source} seriesOptions={SERIES} seriesSource={post.series_source}
+                initial={{ series: post.series ?? "", topic: post.topic ?? "", subtopic: post.subtopic ?? "", content_type: post.content_type ?? "", hook_type: post.hook_type ?? "", format: post.format ?? "", is_news: post.is_news === null ? null : !!post.is_news }}
                 options={{ topic: merge(DEFAULT_TOPICS, tags.topic), subtopic: tags.subtopic, content_type: merge(DEFAULT_CONTENT_TYPES, tags.content_type), hook_type: merge(DEFAULT_HOOK_TYPES, tags.hook_type), format: merge(DEFAULT_FORMATS, tags.format) }} />
             )}
           </Card>
@@ -134,6 +140,31 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
         <Metric label="Profile visits" value={post.profile_visits} sub={fmtRate(post.profile_visit_rate, 3) + " of impressions"} missing={privMissing} />
         <Metric label="Link clicks" value={post.link_clicks} sub={fmtRate(post.link_click_rate, 3) + " of impressions"} missing={post.non_public_available ? "X reports this only for posts with a clickable link" : privMissing} />
       </div>
+
+      {post.isOriginal && (
+        <Card className="mt-4" title="Early performance" subtitle="Impressions at fixed ages, against your other posts at the same age. Needs syncs in the first hours after posting." action={post.rank !== null ? <span className="num text-[13px] text-ink2" title="Rank by impressions among all your original posts">Rank <span className="font-semibold text-ink">#{post.rank}</span> of {ranked}</span> : undefined} pad={false}>
+          <table className="w-full">
+            <thead className="border-b border-line"><tr>
+              <th className="th">Age</th><th className="th text-right">This post</th><th className="th text-right">Median of other posts</th><th className="th text-right">Compared posts</th><th className="th w-10"></th>
+            </tr></thead>
+            <tbody>
+              {early.map((m) => (
+                <tr key={m.hours} className="border-b border-line/60 last:border-0">
+                  <td className="td text-ink">First {m.hours === 1 ? "hour" : `${m.hours} hours`}</td>
+                  <td className="td num text-right font-medium text-ink">
+                    {m.value ? <span title={m.value.estimated ? "Estimated between the two snapshots around this age" : `Measured at ${m.value.atHours < 2 ? `${Math.round(m.value.atHours * 60)} min` : `${m.value.atHours.toFixed(1)} h`}`}>{m.value.estimated ? "≈" : ""}{fmtInt(m.value.value)}</span>
+                      : <span className="font-normal text-muted">{post.ageHours < m.hours ? "not reached yet" : "not captured"}</span>}
+                  </td>
+                  <td className="td num text-right">{fmtInt(m.median)}</td>
+                  <td className="td text-right"><N n={m.others.length} /></td>
+                  <td className="td"><StatusIcon s={m.status} basis={`other posts at ${m.hours}h`} fmt={fmtCompact} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="border-t border-line px-5 py-3 text-[12px] leading-4 text-muted">Values come only from stored snapshots: measured when a sync ran close to that age, &asymp; when interpolated between two nearby snapshots, otherwise &ldquo;not captured&rdquo;. Posts published before frequent syncing started have no early data.</p>
+        </Card>
+      )}
 
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <Card title="Rates against your baseline" subtitle={`30-day baseline = your original posts from the 30 days before this one.`} action={<N n={before.length} />} pad={false}>

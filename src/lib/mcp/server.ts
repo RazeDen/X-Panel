@@ -1,14 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getDataset, getSnapshots, type Dataset } from "../data";
+import { getDataset, getSnapshotPoints, getSnapshots, type Dataset } from "../data";
 import { applyFilters, dateWindow, inWindow, parseFilters, previousWindow, type Filters } from "../filters";
 import { summarize, groupPosts, dimensionValue } from "../analytics/summary";
-import { buildWeeklyReport, weeksWithPosts } from "../analytics/weekly";
-import { getStoredReport, reportToMarkdown } from "../analytics/report-store";
+import { ageLabel, milestones, recentCard, statusOf } from "../analytics/growth";
+import { SERIES } from "../classify/rules";
 import { activityPeriods, buildActivity, currentStreak } from "../analytics/activity";
 import { dataWarnings } from "../warnings";
 import { pctChange } from "../stats";
-import { addDays, today, weekFromKey, weekOfDate } from "../time";
 import { slim } from "../slim";
 import { MIN_SAMPLE, type GroupRow, type Post, type Summary } from "../analytics/types";
 import { runSync, DEFAULT_WINDOW_DAYS } from "../x/sync";
@@ -20,7 +19,7 @@ import { XApiError } from "../x/client";
  * Keep the tool set in step with the dashboard: when a page or metric changes significantly,
  * update the matching tool here (see CLAUDE.md "MCP server").
  */
-export const MCP_VERSION = "1.0.0";
+export const MCP_VERSION = "2.0.0";
 
 const INSTRUCTIONS = `Personal X (Twitter) analytics for one account, read from the local dashboard database.
 Rules for interpreting the data:
@@ -29,6 +28,9 @@ Rules for interpreting the data:
 - null means the metric is unavailable from the X API (e.g. private metrics for posts older than ~30 days). It is never zero - do not treat it as 0.
 - Prefer medians over averages; always mention the sample size n. Groups with n < ${MIN_SAMPLE} are low sample - do not draw conclusions from them.
 - Posts under 48h old ("maturing") are still accumulating; comparisons understate them.
+- "series" is the owner's content line: "Animated file" (an animated post built around a file, config, prompt or rule set), "Animated scene" (an animation where something happens) or "Other". It is auto-detected from the headline and corrected by hand, so treat it as a label, not ground truth.
+- Early numbers (impressions at 1h / 6h / 24h, same-age rank) exist only where a sync ran near that age; "estimated" values are interpolated between two nearby snapshots. Missing early numbers mean "not captured", not zero.
+- "rank" is the post's rank by impressions among all original posts (1 = most).
 - Describe reach as "low/high distribution relative to baseline". Never claim X suppressed or boosted a post, and do not invent reasons for the algorithm's behaviour. Correlation is not causation.
 - Dates and hours are in Europe/Warsaw time; weeks are ISO weeks (2026-W40).
 - run_sync calls the paid X API (about $0.13 per incremental run); only run it when the user asks for fresh data.`;
@@ -48,6 +50,7 @@ const filterShape = {
   week: z.string().regex(/^\d{4}-W\d{2}$/).optional().describe("ISO week, e.g. 2026-W40"),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Start date YYYY-MM-DD (Europe/Warsaw)"),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("End date YYYY-MM-DD (Europe/Warsaw)"),
+  series: z.enum(SERIES).optional().describe("The owner's content line"),
   topic: z.string().optional(),
   format: z.string().optional().describe("Text, Image, Video, GIF, Thread, Link, Mixed media"),
   content_type: z.string().optional(),
@@ -55,11 +58,11 @@ const filterShape = {
   min_impressions: z.number().int().positive().optional(),
   query: z.string().optional().describe("Case-insensitive text search in the post text"),
 };
-type FilterArgs = { range?: z.infer<typeof RANGE>; week?: string; from?: string; to?: string; topic?: string; format?: string; content_type?: string; hook?: string; min_impressions?: number; query?: string; kind?: string };
+type FilterArgs = { range?: z.infer<typeof RANGE>; week?: string; from?: string; to?: string; series?: string; topic?: string; format?: string; content_type?: string; hook?: string; min_impressions?: number; query?: string; kind?: string };
 
 function toFilters(a: FilterArgs, defaultRange: Filters["range"]): Filters {
   return parseFilters(
-    { range: a.range, week: a.week, from: a.from, to: a.to, topic: a.topic, format: a.format, ctype: a.content_type, hook: a.hook, min: a.min_impressions ? String(a.min_impressions) : undefined, q: a.query, kind: a.kind },
+    { range: a.range, week: a.week, from: a.from, to: a.to, series: a.series, topic: a.topic, format: a.format, ctype: a.content_type, hook: a.hook, min: a.min_impressions ? String(a.min_impressions) : undefined, q: a.query, kind: a.kind },
     { range: defaultRange }
   );
 }
@@ -85,7 +88,7 @@ function postRow(p: Post) {
   const s = slim(p, 160);
   return {
     id: s.id, url: s.url, kind: s.kind, date: `${s.localDate} ${s.localTime}`, day: s.dowName, text: s.preview,
-    topic: s.topic, format: s.format, hook: s.hook, contentType: s.ctype, tagSource: s.classSource,
+    series: s.series, rank: s.rank, topic: s.topic, format: s.format, hook: s.hook, contentType: s.ctype, tagSource: s.classSource,
     impressions: s.impressions, likes: s.likes, replies: s.replies, reposts: s.reposts, quotes: s.quotes, bookmarks: s.bookmarks,
     profileVisits: s.profileVisits, engagementRate: s.engagementRate, bookmarkRate: s.bookmarkRate,
     distributionScore: s.distribution, qualityScore: s.quality, outlier: s.outlier, maturing: s.maturing,
@@ -202,7 +205,8 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
       id: p.id, xId: p.x_id, url: p.url, kind: p.kind, isArticle: p.isArticle, countedInAnalytics: p.isOriginal,
       published: `${p.localDate} ${p.localTime} (${p.dowName}, ${p.bucket})`, lastSynced: p.last_synced_at, maturing: p.maturing,
       articleTitle: p.article_title, text: p.text,
-      tags: { topic: p.topic, subtopic: p.subtopic, contentType: p.content_type, hook: p.hook_type, isNews: p.is_news === null ? null : !!p.is_news, format: p.format, source: p.class_source },
+      rankByImpressions: p.rank, rankedPosts: d.originals.filter((q) => q.rank !== null).length,
+      tags: { series: p.series, seriesSource: p.series_source, topic: p.topic, subtopic: p.subtopic, contentType: p.content_type, hook: p.hook_type, isNews: p.is_news === null ? null : !!p.is_news, format: p.format, source: p.class_source },
       structure: { mediaTypes: p.mediaTypes, hasLink: !!p.has_link, threadRoot: !!p.is_thread_root, selfQuote: !!p.is_self_quote, videoDurationMs: p.video_duration_ms },
       metrics: {
         impressions: p.impressions, likes: p.likes, replies: p.replies, reposts: p.reposts, quotes: p.quotes, bookmarks: p.bookmarks,
@@ -218,6 +222,10 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
         qualityComponents: score.qualityComponents, expectedImpressions: { median: score.expectedMedian, p25: score.expectedLow, p75: score.expectedHigh },
         liftVsExpectedMedian: score.lift, robustZ: score.robustZ, outlier: score.outlier, lowConfidence: score.lowConfidence, diagnosis: score.diagnosis,
       } : null,
+      earlyPerformance: p.isOriginal ? milestones(p, getSnapshotPoints({ maxAgeHours: 36 }), d.originals).map((m) => ({
+        age: `${m.hours}h`, impressions: m.value ? m.value.value : null, estimated: m.value?.estimated ?? null,
+        otherPostsMedian: m.median, n: m.others.length, verdict: m.status ? { status: m.status.status, usualRange: [m.status.low, m.status.high] } : null,
+      })) : null,
       history: { snapshots: snaps.length, recent: snaps.slice(-history_limit).map((s) => ({ at: s.captured_at, source: s.source, impressions: s.impressions, likes: s.likes, replies: s.replies, reposts: s.reposts, bookmarks: s.bookmarks, profileVisits: s.profile_visits, videoViews: s.video_views })) },
     });
   });
@@ -226,7 +234,7 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
     title: "Performance by group",
     description: "Original posts grouped by a tag or by timing (dashboard Content and Timing pages): n, median and average impressions, median rates and median scores per group. Groups with lowSample=true have fewer than 3 posts.",
     inputSchema: {
-      dimension: z.enum(["topic", "subtopic", "content_type", "hook_type", "format", "news", "bucket", "dow", "hour"]).describe("bucket = 3-hour time slot, dow = day of week, hour = hour of day"),
+      dimension: z.enum(["series", "topic", "subtopic", "content_type", "hook_type", "format", "news", "bucket", "dow", "hour"]).describe("bucket = 3-hour time slot, dow = day of week, hour = hour of day"),
       ...filterShape,
     },
     annotations: read,
@@ -237,22 +245,25 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
     return text({ window: dateWindow(f, now()).label, dimension: a.dimension, overall: summaryOut(summarize(posts)), groups: groupOut(groupPosts(posts, (p) => dimensionValue(p, a.dimension))) });
   });
 
-  server.registerTool("get_weekly_report", {
-    title: "Weekly report",
-    description: "The weekly report (same as the dashboard Weekly page) as Markdown: headline metrics vs the previous week and the 30-day baseline, top/weak posts, outliers, breakdowns, and DATA / HYPOTHESIS / EXPERIMENT statements. Defaults to the last completed week.",
-    inputSchema: { week: z.string().optional().describe('ISO week like "2026-W40", or "current" for the week in progress') },
+  server.registerTool("get_recent_performance", {
+    title: "Recent post performance",
+    description: "YouTube-style card for each of the last N original posts (dashboard Overview \"Latest post performance\"): age, rank among the recent posts (at the same age when enough early snapshots exist, otherwise by total impressions - check sameAge), impressions after the first hour, and whether impressions, engagement rate and bookmark rate are above, within or below the usual range of the other recent posts (25th-75th percentile, n >= 3).",
+    inputSchema: { count: z.number().int().min(1).max(30).default(10).describe("How many recent posts") },
     annotations: read,
-  }, async ({ week }) => {
+  }, async ({ count }) => {
     const d = ds();
-    const t = now();
-    const weeks = weeksWithPosts(d.originals, t);
-    const lastComplete = weekOfDate(addDays(today(t), -7));
-    const target = week === "current" ? weekOfDate(today(t)) : week ? weekFromKey(week) : (d.originals.some((p) => p.weekKey === lastComplete.key) ? lastComplete : weeks[0] ?? lastComplete);
-    if (!target) return fail(`Unknown week "${week}". Use the ISO format 2026-W40.`);
-    const r = buildWeeklyReport(d.originals, target.key, t);
-    if (!r) return fail("Could not build the report.");
-    const stored = getStoredReport(target.key);
-    return text(`${reportToMarkdown(r, stored?.ai_analysis)}\n\n---\nWeeks with posts (newest first): ${weeks.slice(0, 12).map((w) => w.key).join(", ")}`);
+    const ids = [...d.originals].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, count).map((p) => p.id);
+    const snaps = getSnapshotPoints({ postIds: ids });
+    const verdict = (s: ReturnType<typeof statusOf>) => (s ? { status: s.status, usualRange: [s.low, s.high], n: s.n } : null);
+    const cards = ids.map((_, i) => recentCard(d.originals, snaps, i, count)).filter((c): c is NonNullable<typeof c> => !!c);
+    return text(cards.map((c) => ({
+      ...postRow(c.post), age: ageLabel(c.ageHours), ageHours: c.ageHours,
+      rank: c.rank ? { rank: c.rank.rank, of: c.rank.of, basis: c.rank.sameAge ? "same age" : "total impressions (different ages)" } : null,
+      impressionsVerdict: verdict(c.impressions.status), impressionsBasis: c.impressions.basis,
+      firstHour: c.firstHour.value ? { impressions: c.firstHour.value.value, estimated: c.firstHour.value.estimated } : "not captured",
+      firstHourVerdict: verdict(c.firstHour.status),
+      engagementRateVerdict: verdict(c.engagementRate.status), bookmarkRateVerdict: verdict(c.bookmarkRate.status),
+    })));
   });
 
   server.registerTool("get_outliers", {

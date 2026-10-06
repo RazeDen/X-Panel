@@ -22,8 +22,8 @@ export function useUrlState() {
   return { params, set, pending };
 }
 
-export interface FilterOptions { topic: string[]; format: string[]; ctype: string[]; hook: string[] }
-type Field = "range" | "topic" | "format" | "ctype" | "hook" | "min" | "q" | "kind";
+export interface FilterOptions { series?: string[]; topic: string[]; format: string[]; ctype: string[]; hook: string[] }
+type Field = "range" | "series" | "topic" | "format" | "ctype" | "hook" | "min" | "q" | "kind";
 
 export function FilterBar({ show, options, defaultRange = "30d", windowLabel, count }: {
   show: Field[]; options?: FilterOptions; defaultRange?: string; windowLabel?: string; count?: string;
@@ -50,7 +50,7 @@ export function FilterBar({ show, options, defaultRange = "30d", windowLabel, co
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [min]);
 
-  const select = (key: "topic" | "format" | "ctype" | "hook", label: string, values: string[]) => {
+  const select = (key: "series" | "topic" | "format" | "ctype" | "hook", label: string, values: string[]) => {
     const current = params.get(key) ?? "";
     const list = current && !values.includes(current) ? [current, ...values] : values;
     return (
@@ -60,7 +60,7 @@ export function FilterBar({ show, options, defaultRange = "30d", windowLabel, co
       </select>
     );
   };
-  const active = ["topic", "format", "ctype", "hook", "min", "q", "week", "from", "to", "dow", "slot"].filter((k) => params.get(k));
+  const active = ["series", "topic", "format", "ctype", "hook", "min", "q", "week", "from", "to", "dow", "slot"].filter((k) => params.get(k));
 
   return (
     <div className={`mb-4 flex flex-wrap items-center gap-2 ${pending ? "opacity-70" : ""}`}>
@@ -95,6 +95,7 @@ export function FilterBar({ show, options, defaultRange = "30d", windowLabel, co
           <option value="all">Everything</option>
         </select>
       )}
+      {options && has("series") && select("series", "Series", options.series ?? [])}
       {options && has("topic") && select("topic", "Topic", options.topic)}
       {options && has("format") && select("format", "Format", options.format)}
       {options && has("ctype") && select("ctype", "Type", options.ctype)}

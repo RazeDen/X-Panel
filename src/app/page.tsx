@@ -1,16 +1,19 @@
 import Link from "next/link";
-import { getDataset } from "@/lib/data";
+import { getDataset, getSnapshotPoints } from "@/lib/data";
 import { applyFilters, dateWindow, parseFilters, previousWindow, inWindow } from "@/lib/filters";
-import { summarize } from "@/lib/analytics/summary";
+import { groupPosts, summarize } from "@/lib/analytics/summary";
+import { recentCard } from "@/lib/analytics/growth";
+import { SERIES } from "@/lib/classify/rules";
 import { buildSeries } from "@/lib/analytics/series";
 import { pctChange } from "@/lib/stats";
 import { addDays, DOW_NAMES, today, weekOfDate, prevWeek, formatDateTime } from "@/lib/time";
 import { fmtCompact, fmtDelta, fmtInt, fmtRate } from "@/lib/format";
 import { slim } from "@/lib/slim";
-import { Card, EmptyDatabase, N, Notice, PageHeader, StatCard } from "@/components/ui";
+import { Card, Delta, EmptyDatabase, N, Notice, PageHeader, StatCard } from "@/components/ui";
 import { BarsChart, LinesChart } from "@/components/charts";
 import { FilterBar } from "@/components/filters";
 import { PostCard } from "@/components/PostCard";
+import { LatestPostCard } from "@/components/LatestPostCard";
 import type { Post, Summary } from "@/lib/analytics/types";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +22,8 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const ds = getDataset();
   if (ds.empty) return <EmptyDatabase />;
   const now = new Date();
-  const f = parseFilters(await searchParams, { range: "7d" });
+  const sp = await searchParams;
+  const f = parseFilters(sp, { range: "7d" });
   const win = dateWindow(f, now);
   const posts = applyFilters(ds.originals, f, now);
   const cur = summarize(posts);
@@ -75,19 +79,55 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   });
   const maturing = posts.filter((p) => p.maturing).length;
 
+  // Latest-post card: the last 10 original posts, paged with ?lp=0..9 (0 = newest).
+  const recentIds = [...ds.originals].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 10).map((p) => p.id);
+  const lp = Math.min(Math.max(Number(sp.lp) || 0, 0), Math.max(recentIds.length - 1, 0));
+  const card = recentCard(ds.originals, getSnapshotPoints({ postIds: recentIds }), lp);
+  const keep = Object.entries(sp).filter(([k, v]) => k !== "lp" && typeof v === "string") as [string, string][];
+  const hrefFor = (i: number) => { const q = new URLSearchParams(keep); if (i) q.set("lp", String(i)); const s = q.toString(); return s ? `/?${s}` : "/"; };
+
+  // The owner's two main series against everything else, in the selected range.
+  const seriesRows = groupPosts(posts, (p) => p.series, [...SERIES]).filter((r) => SERIES.includes(r.key as (typeof SERIES)[number]));
+
   return (
     <>
       <PageHeader title="Overview" subtitle={<>Original posts by @{ds.account.username}. Replies, reposts and articles are stored but excluded from every number here. {ds.lastSync && <>Last synced {formatDateTime(ds.lastSync)}.</>}</>} />
       <FilterBar show={["range"]} defaultRange="7d" windowLabel={win.label} count={`${win.label} · ${posts.length} posts`} />
       {maturing > 0 && <div className="mb-4"><Notice tone="warn">{maturing} post{maturing > 1 ? "s" : ""} in this range {maturing > 1 ? "were" : "was"} published less than 48h before the last sync. Their numbers are still growing, so period comparisons understate them.</Notice></div>}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        {card ? <LatestPostCard card={card} hrefFor={hrefFor} /> : <div />}
+        <div className="min-w-0 space-y-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <StatCard label="Posts" value={fmtInt(cur.n)} delta={prev ? pctChange(cur.n, prev.n) : undefined} deltaLabel={vs} />
         <StatCard label="Total impressions" value={fmtCompact(cur.totalImpressions)} delta={prev ? ch(cur.totalImpressions, prev.totalImpressions) : undefined} deltaLabel={vs} hint={fmtInt(cur.totalImpressions)} />
         <StatCard label="Median impr. / post" value={fmtCompact(cur.medianImpressions)} delta={prev ? ch(cur.medianImpressions, prev.medianImpressions) : undefined} deltaLabel={vs} hint="The middle post. Not distorted by one viral post." />
         <StatCard label="Average impr. / post" value={fmtCompact(cur.avgImpressions)} delta={prev ? ch(cur.avgImpressions, prev.avgImpressions) : undefined} deltaLabel={vs} hint="Mean. Pulled up by viral posts - compare with the median." />
         <StatCard label="Engagement rate" value={fmtRate(cur.medianEngagementRate)} delta={prev ? ch(cur.medianEngagementRate, prev.medianEngagementRate) : undefined} deltaLabel={vs} sub={`median per post · pooled ${fmtRate(cur.pooledEngagementRate)}`} hint="(likes + replies + reposts + quotes + bookmarks) / impressions" />
         <StatCard label="Total engagements" value={fmtCompact(cur.totalEngagements)} delta={prev ? ch(cur.totalEngagements, prev.totalEngagements) : undefined} deltaLabel={vs} sub={`${fmtInt(cur.totalLikes)} likes · ${fmtInt(cur.totalBookmarks)} bookmarks`} />
+      </div>
+          <Card title="Your series" subtitle={`${win.label}. Medians per post; open a row to see its posts.`} pad={false}>
+            <table className="w-full">
+              <thead className="border-b border-line"><tr>
+                <th className="th">Series</th><th className="th text-right">Posts</th><th className="th text-right">Median impr.</th>
+                <th className="th text-right">vs all posts</th><th className="th text-right">Median ER</th><th className="th text-right">Median dist. score</th>
+              </tr></thead>
+              <tbody>
+                {seriesRows.map((r) => (
+                  <tr key={r.key} className="border-b border-line/60 last:border-0 hover:bg-white/5">
+                    <td className="td"><Link className="text-ink hover:underline" href={`/posts?series=${encodeURIComponent(r.key)}&range=${f.range}`}>{r.key}</Link></td>
+                    <td className="td text-right"><N n={r.n} /></td>
+                    <td className="td num text-right font-medium text-ink">{fmtCompact(r.medianImpressions)}</td>
+                    <td className="td num text-right">{r.medianImpressions !== null && cur.medianImpressions ? <Delta value={r.medianImpressions / cur.medianImpressions - 1} /> : "—"}</td>
+                    <td className="td num text-right">{fmtRate(r.medianEngagementRate)}</td>
+                    <td className="td num text-right">{r.medianDistribution === null ? "—" : Math.round(r.medianDistribution)}</td>
+                  </tr>
+                ))}
+                {!seriesRows.length && <tr><td colSpan={6} className="px-4 py-6 text-center text-[13px] text-muted">No posts in this range.</td></tr>}
+              </tbody>
+            </table>
+          </Card>
+        </div>
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -102,7 +142,6 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         </Card>
         <Card title={`Week ${wk.week} vs week ${pwk.week}`} subtitle={`Impressions by publish day. ${wk.label} against ${pwk.label}.`}>
           <BarsChart format="compact" series={[{ key: "current", label: `Week ${wk.week}` }, { key: "previous", label: `Week ${pwk.week}` }]} data={weekRows} />
-          <div className="mt-2 text-right text-xs"><Link className="link" href={`/weekly?week=${wk.key}`}>Open the week {wk.week} report</Link></div>
         </Card>
       </div>
 

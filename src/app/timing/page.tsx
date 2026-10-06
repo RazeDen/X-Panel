@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getDataset } from "@/lib/data";
+import { getDataset, tagValues } from "@/lib/data";
 import { applyFilters, dateWindow, parseFilters } from "@/lib/filters";
 import { groupPosts } from "@/lib/analytics/summary";
 import { median } from "@/lib/stats";
@@ -37,7 +37,7 @@ export default async function TimingPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title="Timing" subtitle={`When you publish and how those posts performed. All times in ${TZ}.`} />
-      <FilterBar show={["range"]} defaultRange="90d" windowLabel={win.label} count={`${win.label} · ${posts.length} posts`} />
+      <FilterBar show={["range", "series"]} defaultRange="90d" windowLabel={win.label} options={{ series: tagValues(ds.originals).series, topic: [], format: [], ctype: [], hook: [] }} count={`${win.label} · ${posts.length} posts`} />
       <div className="mb-4"><Notice>These are correlations. Time slots differ in what you posted there, not only in when - a slot can look strong because one topic or one viral post landed in it. Check the sample size before acting on any cell.</Notice></div>
 
       <div className="grid gap-4 xl:grid-cols-2">

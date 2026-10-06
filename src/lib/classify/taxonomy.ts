@@ -16,8 +16,9 @@ export const DEFAULT_HOOK_TYPES = [
 ];
 export const DEFAULT_FORMATS = ["Text", "Image", "Video", "GIF", "Article", "Thread", "Link", "Mixed media"];
 
-export type Dimension = "topic" | "subtopic" | "content_type" | "hook_type" | "format";
+export type Dimension = "series" | "topic" | "subtopic" | "content_type" | "hook_type" | "format";
 export const DIMENSIONS: { key: Dimension; label: string; plural: string }[] = [
+  { key: "series", label: "Series", plural: "Series" },
   { key: "topic", label: "Topic", plural: "Topics" },
   { key: "subtopic", label: "Subtopic", plural: "Subtopics" },
   { key: "format", label: "Format", plural: "Formats" },

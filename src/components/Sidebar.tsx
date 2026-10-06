@@ -13,14 +13,12 @@ const ICONS: Record<string, ReactNode> = {
   "/timing": <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
   "/patterns": <path d="M5 20V11M11 20V4M17 20v-7M22 20H2" />,
   "/outliers": <path d="m3 17 6-6 4 4 8-8M15 7h6v6" />,
-  "/weekly": <><path d="M6 2.5h8l4.5 4.5v13a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 20V4A1.5 1.5 0 0 1 6 2.5z" /><path d="M14 2.5V7h4.5M8.5 12.5h7M8.5 16h7" /></>,
   "/data": <><ellipse cx="12" cy="5.5" rx="8" ry="3" /><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" /></>,
 };
 
 const GROUPS: { label: string | null; items: { href: string; label: string }[] }[] = [
   { label: null, items: [{ href: "/", label: "Overview" }, { href: "/activity", label: "Activity" }, { href: "/posts", label: "Posts" }] },
   { label: "Analysis", items: [{ href: "/content", label: "Content" }, { href: "/timing", label: "Timing" }, { href: "/patterns", label: "Patterns" }, { href: "/outliers", label: "Outliers" }] },
-  { label: "Reports", items: [{ href: "/weekly", label: "Weekly report" }] },
   { label: "System", items: [{ href: "/data", label: "Data & methods" }] },
 ];
 

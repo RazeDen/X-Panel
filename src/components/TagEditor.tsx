@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 
-export interface TagValues { topic: string; subtopic: string; content_type: string; hook_type: string; format: string; is_news: boolean | null }
+export interface TagValues { series: string; topic: string; subtopic: string; content_type: string; hook_type: string; format: string; is_news: boolean | null }
 type Options = Record<"topic" | "subtopic" | "content_type" | "hook_type" | "format", string[]>;
 
 const FIELDS: { key: keyof Options; label: string }[] = [
@@ -14,7 +14,7 @@ const FIELDS: { key: keyof Options; label: string }[] = [
 ];
 
 /** Edit a post's tags. Any value can be typed - suggestions are existing and default tags. */
-export function TagEditor({ postId, initial, options, source }: { postId: number; initial: TagValues; options: Options; source: string | null }) {
+export function TagEditor({ postId, initial, options, source, seriesOptions, seriesSource }: { postId: number; initial: TagValues; options: Options; source: string | null; seriesOptions: readonly string[]; seriesSource: string | null }) {
   const router = useRouter();
   const uid = useId();
   const [v, setV] = useState<TagValues>(initial);
@@ -41,6 +41,13 @@ export function TagEditor({ postId, initial, options, source }: { postId: number
   return (
     <form onSubmit={(e) => { e.preventDefault(); void call("PATCH"); }}>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="block">
+          <span className="label">Series {seriesSource && <span className="text-muted">({seriesSource === "manual" ? "yours" : "automatic"})</span>}</span>
+          <select className="input mt-1 w-full" value={v.series} onChange={(e) => { setV({ ...v, series: e.target.value }); setState("idle"); }}>
+            {!seriesOptions.includes(v.series) && <option value={v.series}>{v.series || "Not set"}</option>}
+            {seriesOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </label>
         {FIELDS.map((f) => (
           <label key={f.key} className="block">
             <span className="label">{f.label}</span>

@@ -73,6 +73,7 @@ export const dimensionValue = (p: Post, dim: string): string | null => {
     case "content_type": return p.content_type;
     case "hook_type": return p.hook_type;
     case "format": return p.format;
+    case "series": return p.series;
     case "bucket": return p.bucket;
     case "dow": return p.dowName;
     case "hour": return String(p.hour).padStart(2, "0") + ":00";

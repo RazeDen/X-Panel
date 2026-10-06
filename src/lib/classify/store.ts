@@ -4,7 +4,7 @@ import type { Classification } from "./taxonomy";
 /** Writes tags for one post. Empty strings become NULL; the source is always recorded. */
 export function saveClassification(
   postId: number,
-  c: Partial<Classification> & { format?: string | null },
+  c: Partial<Classification> & { format?: string | null; series?: string | null },
   source: ClassSource,
   note?: string | null
 ): boolean {
@@ -18,6 +18,11 @@ export function saveClassification(
   db.prepare(
     `UPDATE posts SET topic = ?, subtopic = ?, content_type = ?, hook_type = ?, is_news = ?, class_source = ?, class_updated_at = ?, class_note = ? WHERE id = ?`
   ).run(norm(c.topic, cur.topic), norm(c.subtopic, cur.subtopic), norm(c.content_type, cur.content_type), norm(c.hook_type, cur.hook_type), isNews, source, new Date().toISOString(), note ?? null, postId);
+  if (c.series !== undefined) {
+    const v = c.series && c.series.trim() ? c.series.trim() : null;
+    // Only a changed value becomes manual, so saving other tags does not freeze the automatic series.
+    db.prepare("UPDATE posts SET series = ?, series_source = 'manual' WHERE id = ? AND series IS NOT ?").run(v, postId, v);
+  }
   if (c.format !== undefined) {
     const f = c.format && c.format.trim() ? c.format.trim() : null;
     if (f && f !== cur.format) db.prepare("UPDATE posts SET format = ?, format_source = 'manual' WHERE id = ?").run(f, postId);
@@ -27,5 +32,5 @@ export function saveClassification(
 
 /** Hands a post back to the rule-based classifier (used by "reset to automatic"). */
 export function resetClassification(postId: number): void {
-  getDb().prepare("UPDATE posts SET class_source = NULL, format_source = NULL WHERE id = ?").run(postId);
+  getDb().prepare("UPDATE posts SET class_source = NULL, format_source = NULL, series_source = NULL WHERE id = ?").run(postId);
 }

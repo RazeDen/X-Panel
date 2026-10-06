@@ -23,6 +23,8 @@ export interface Post extends Omit<PostRow, "media_types" | "external_urls"> {
   /** X Article (long-form). Stored and browsable, never counted as a post. */
   isArticle: boolean;
   score: PostScore | null;
+  /** Rank by impressions among all original posts with an impression count (1 = most); null otherwise. */
+  rank: number | null;
 }
 
 export type OutlierKind = "far_above" | "above" | "below";

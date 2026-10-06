@@ -10,6 +10,7 @@ The dashboard copies the look of the **X Developer Console** (console.x.com, dar
 - Small radii: panels 14px, cards 10px, controls 6px. Nothing pill-shaped except dots and avatars.
 - Fast, subtle motion: 150ms with the console easing `cubic-bezier(0.16, 1, 0.3, 1)`.
 - Direction is never shown by colour alone: always an arrow (`↑` / `↓`) or text next to the colour.
+- Values that could not be measured read "not captured" / "—" in `text-muted`; estimated values carry a `≈` prefix and a tooltip saying how they were estimated.
 
 ## Tokens (`src/app/globals.css`; Tailwind name in brackets; console source variable)
 
@@ -81,6 +82,9 @@ Fonts: **Inter** (`--font-inter`) for text and **Geist Mono** (`--font-geist-mon
 | Sample size | `N` - always next to aggregates |
 | Charts | `BarsChart`, `LinesChart`, `QuadrantChart` (`src/components/charts.tsx`) |
 | Calendar heatmap | `Heatmap`: accent blue at 30 / 55 / 80 / 100% for levels 1-4, `bg-raised` for zero |
+| Latest post card | `LatestPostCard` (YouTube Studio "Latest video performance" pattern): 16:9 media preview with an 8px radius, bottom black gradient and the post's first line in white semibold, series chip top-left; counter row (eye / heart / bubble / bookmark icons, 16px); divider; muted age line ("First 5 hours"); label-value rows 13px with a verdict icon on the right; `.btn` "See post analytics"; footer pager `‹ 3 of 10 ›` with `.icon-btn`, separated by `border-t` |
+| Verdict icon | `StatusIcon`: 16px; within usual range = green outlined circle with a check, above = filled green circle with a black up arrow, below = filled red circle with a down arrow; always with a tooltip naming the comparison and n; an empty 16px spacer when there is no verdict so values stay aligned |
+| Media preview | Plain `<img>` from `media_preview` (X CDN), `object-cover`; when missing, a `hatch` block on `bg-sunken` of the same size |
 | Sync | `SyncButton variant="topbar"` in the top bar; full version (incremental + full re-sync) on Data & methods |
 | Logo | `Logo` (`src/components/Logo.tsx`), favicon `src/app/icon.svg` |
 

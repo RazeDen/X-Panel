@@ -174,6 +174,15 @@ CREATE TABLE meta (
 );
 `,
   },
+  {
+    id: 2,
+    name: "series tag and media preview",
+    sql: `
+ALTER TABLE posts ADD COLUMN series TEXT;          -- owner's content line: Animated file | Animated scene | Other
+ALTER TABLE posts ADD COLUMN series_source TEXT;   -- rule | manual
+ALTER TABLE posts ADD COLUMN media_preview TEXT;   -- preview image URL of the first media item (from the existing media fields)
+`,
+  },
 ];
 
 type DB = Database.Database;
@@ -292,6 +301,9 @@ export interface PostRow extends MetricValues, RateValues {
   class_note: string | null;
   format: string | null;
   format_source: "rule" | "manual" | null;
+  series: string | null;
+  series_source: "rule" | "manual" | null;
+  media_preview: string | null;
   non_public_available: number;
 }
 

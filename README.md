@@ -1,6 +1,6 @@
 # X-Panel
 
-A personal analytics system for one X (Twitter) account. It pulls your own posts through the X API, keeps a local history of their metrics in SQLite, tags every post, compares posts against your own baseline, writes a weekly report, and shows all of it in a local dashboard styled after the X Developer Console. An MCP server lets Claude Desktop query the same data.
+A personal analytics system for one X (Twitter) account. It pulls your own posts through the X API, keeps a local history of their metrics in SQLite, tags every post (including your own content series), tracks how fast new posts grow in their first hours, compares posts against your own baseline, and shows all of it in a local dashboard styled after the X Developer Console. An MCP server lets Claude Desktop query the same data.
 
 Everything runs on your machine. There is no login, no cloud service and no telemetry.
 
@@ -16,10 +16,10 @@ npm run sync         # first run downloads your whole timeline
 npm run dev          # dashboard at http://localhost:3000
 ```
 
-Then, once a week:
+Then, on Windows, let it sync by itself (every 15 minutes for fresh posts, once a day for the rest; see Automation):
 
 ```
-npm run weekly
+npm run schedule:install
 ```
 
 `.env` needs the four values of your X app (developer console: your app's keys and tokens). It is gitignored and never leaves your machine:
@@ -40,11 +40,9 @@ X_ACCESS_TOKEN_SECRET=
 | `npm run sync` (alias `npm run sync:x`) | Incremental sync: posts from the last 45 days. New posts are added, recent posts get fresh numbers, and one snapshot per post is appended to the history |
 | `npm run sync -- --days=90` | Incremental sync with a different window |
 | `npm run sync:full` | Re-reads the whole timeline (up to the 3,200 most recent posts). Use for debugging or to refresh old posts |
-| `npm run weekly` | Full weekly pipeline for the last completed week: sync, snapshots, derived metrics, weekly aggregates, outliers, validation, saved report |
-| `npm run weekly -- --week=2026-W40` | Same for a specific ISO week |
-| `npm run weekly -- --current` | The week in progress |
-| `npm run weekly -- --no-sync` | Build the report from stored data without calling X |
-| `npm run classify` | Re-applies rule-based tags (never touches manual or AI tags) |
+| `npm run sync:fresh` | Sync only posts from the last 2 days (what the 15-minute scheduled task runs) |
+| `npm run schedule:install` / `npm run schedule:remove` | Windows: register / remove the scheduled syncs (see Automation) |
+| `npm run classify` | Re-applies rule-based tags and series (never touches manual or AI tags) |
 | `npm run classify -- --ai` | AI-tags posts that only have rule-based tags (needs `ANTHROPIC_API_KEY`) |
 | `npm run classify -- --export tags.json` / `--import tags.json` | Bulk export / import of tags |
 | `npm run audit:x` | Prints the capability report: which metrics X returns for your posts |
@@ -53,31 +51,18 @@ X_ACCESS_TOKEN_SECRET=
 | `npm run typecheck` | TypeScript check |
 | `npm run mcp:install` | Registers the MCP server in Claude Desktop (run while Claude Desktop is closed) |
 
-`npm run weekly` prints a summary like this (illustrative numbers):
-
-```
-Week 40 processed (Sep 28 - Oct 4, 2026)
-Sync: 120 posts fetched, 2 new, 118 snapshots
-Posts: 12
-Total impressions: 24,310 (+18% vs previous week)
-Median impressions: 1,240 (+6% vs previous week, -4% vs 30-day baseline)
-Top post: 6,820 impressions - "Example post title..."
-Validation: ok
-Report saved successfully: reports/2026-W40.md (also in the dashboard under Weekly)
-```
-
-If the sync step fails (no internet, rate limit, bad keys), the weekly command says so and builds the report from the data already stored. Nothing is deleted.
+If a sync fails (no internet, rate limit, bad keys), it says so and changes nothing. Nothing is ever deleted.
 
 ## The dashboard
 
 | Page | What it shows |
 |---|---|
-| Overview | Headline cards with change vs the previous period, impressions / posts / engagement rate over time, current vs previous week, best and worst post, biggest outliers, rolling account baseline, follower count |
-| Posts | Searchable, sortable table of every stored post. Filters: date range, week, kind, topic, format, content type, hook, minimum impressions, text. Toggle between counts and per-impression rates |
-| Post detail | Full text, link to X, editable tags, metric cards, rates against your baseline, the two scores, growth curve from snapshots, video retention, similar posts |
-| Content | Performance grouped by topic, subtopic, format, content type or hook |
-| Timing | Hour of day, time slots, day of week and a day-by-slot grid, in Europe/Warsaw time |
-| Weekly report | Week selector, headline metrics vs the previous week and the 30-day baseline, what worked / underperformed / signals / hypotheses / experiments, top and weak posts, outliers, breakdowns |
+| Overview | YouTube-style "Latest post performance" card (preview, age, rank among the last 10 posts, first-hour impressions, check / up / down verdicts, paging through the last 10 posts), headline cards with change vs the previous period, your series compared, impressions / posts / engagement rate over time, current vs previous week, best and worst post, biggest outliers, rolling account baseline, follower count |
+| Activity | Calendar heatmap of posts per day, streaks, most common posting hour and format |
+| Posts | Searchable, sortable table of every stored post with rank (#), series and first-hour impressions. Filters: date range, week, kind, series, topic, format, content type, hook, minimum impressions, text. Toggle between counts and per-impression rates |
+| Post detail | Full text, link to X, editable tags and series, metric cards, the two scores, early performance (impressions at 1h / 6h / 24h against your other posts at the same age) and rank, rates against your baseline, growth curve from snapshots, video retention, similar posts |
+| Content | Performance grouped by series, topic, subtopic, format, content type or hook |
+| Timing | Hour of day, time slots, day of week and a day-by-slot grid, in Europe/Warsaw time; filterable by series |
 | Patterns | Best topics, hooks, formats, content types, time slots and days over 7 / 30 / 90 days or all time, plus the categories with the highest bookmark, repost and engagement rates |
 | Outliers | Posts far above or below your own baseline, a reach-vs-quality chart, and posts with low distribution but high engagement quality |
 | Data & methods | Sync button, data-quality warnings, capability report, sync history, methodology |
@@ -88,12 +73,12 @@ Filters live in the URL, so any view can be bookmarked. Charts are clickable: a 
 
 One SQLite file: `data/analytics.db`. Tables:
 
-- `posts` - one row per post: X id, URL, full text (long-post body and article text included), timestamps (`created_at`, `first_seen_at`, `last_synced_at`), structure (kind, media, links, thread / quote flags), tags (`topic`, `subtopic`, `content_type`, `hook_type`, `is_news`, `format` and where each came from: `manual`, `ai` or `rule`), the latest metrics, and the derived rates.
+- `posts` - one row per post: X id, URL, full text (long-post body and article text included), timestamps (`created_at`, `first_seen_at`, `last_synced_at`), structure (kind, media, links, thread / quote flags), tags (`topic`, `subtopic`, `content_type`, `hook_type`, `is_news`, `format`, `series` and where each came from: `manual`, `ai` or `rule`), the preview image of the first media item (`media_preview`), the latest metrics, and the derived rates.
 - `metric_snapshots` - the history. Every sync appends one row per post with the metrics at that moment. Nothing is overwritten, so growth curves build up over time.
 - `account_snapshots` - follower / following / post counts at every sync.
 - `sync_runs` - a log of every sync: mode, status, counts, API calls, warnings, error message.
 - `capabilities` - which metrics X actually returned, rebuilt after every sync.
-- `weekly_reports` - saved weekly reports (full JSON plus optional AI text).
+- `weekly_reports` - left over from the removed weekly-report feature; kept, no longer written.
 - `meta` - last successful sync, account handle.
 
 A metric X does not return is stored as `NULL` and shown as a dash. It is never turned into 0. Posts and snapshots are never deleted: a post that stops appearing in the API is only flagged (`missing_since`).
@@ -123,12 +108,14 @@ Every post has a topic, subtopic, content type, hook type, news flag and format.
 Three sources, stored per post:
 
 - `rule` - keyword rules in `src/lib/classify/rules.ts`. Applied automatically to new posts. Simple and sometimes wrong.
-- `ai` - assigned by a model. With `ANTHROPIC_API_KEY` in `.env`, `npm run weekly` tags new posts automatically and `npm run classify -- --ai` does it on demand.
+- `ai` - assigned by a model. With `ANTHROPIC_API_KEY` in `.env`, `npm run classify -- --ai` tags posts on demand.
 - `manual` - anything you edit on a post page. Manual tags are never overwritten by rules, AI or a sync. "Reset to automatic" hands the post back.
 
 Format (Text, Image, Video, GIF, Article, Thread, Link, Mixed media) is derived from what the post contains, not from its wording. A post counts as a thread when it has two or more self-replies.
 
-No AI key is needed for anything. Without one, new posts get rule-based tags and the weekly narrative is generated from the statistics alone.
+**Series** is the account owner's content line, the main thing to compare: `Animated file` (an animated post built around a file, config, prompt or rule set) and `Animated scene` (an animation where something happens), everything else `Other`. It is detected from the headline of video / GIF posts (`deriveSeries` in `src/lib/classify/rules.ts`, reading only the first line up to the first " - "); a series you pick on a post page is kept and never overwritten. Edit the keyword lists there to fit your own series.
+
+No AI key is needed for anything. Without one, new posts get rule-based tags.
 
 ## Analytics methodology
 
@@ -142,7 +129,7 @@ No AI key is needed for anything. Without one, new posts get rule-based tags and
 
 Only public interactions go into the engagement rate, so it is comparable across all posts including old ones without private metrics. A rate is empty when impressions are missing or zero, or when its numerator is unavailable. Group rates are medians of per-post rates.
 
-**Baseline.** Rolling windows of 7, 30 and 90 days plus all time, with post count, average and median impressions, average and median engagement and like rate, and average reply, repost, bookmark and profile-visit rate. Weekly reports compare a week with the previous week and with the 30 days before it. Sample size is shown next to every aggregate, and groups with fewer than 3 posts are marked "low sample".
+**Baseline.** Rolling windows of 7, 30 and 90 days plus all time, with post count, average and median impressions, average and median engagement and like rate, and average reply, repost, bookmark and profile-visit rate. Period cards compare with the previous period of equal length. Sample size is shown next to every aggregate, and groups with fewer than 3 posts are marked "low sample".
 
 **Distribution score (reach).** The percentile of a post's impressions among your original posts from the 90 days before it (no look-ahead). If fewer than 8 such posts exist, all other posts are used. 50 is a typical post.
 
@@ -161,37 +148,37 @@ z <= -2   below baseline
 
 The "expected range" shown for a post is the 25th-75th percentile of impressions in its reference set. This describes how unusual a post was for this account. It is not a prediction model.
 
-**Weekly narrative.** Generated from the numbers by fixed rules (`src/lib/analytics/weekly.ts`). Every line is labelled:
+**Early performance and rank** (`src/lib/analytics/growth.ts`). Impressions at a given age (1h, 6h, 24h) come only from stored snapshots:
 
-- `DATA` - a measured fact with its sample size
-- `HYPOTHESIS` - a possible explanation, explicitly not established
-- `EXPERIMENT` - something to test next week
+- measured - a sync ran close to that age (within 10%, at least 7.5 minutes);
+- estimated (shown with ≈) - interpolated between the two snapshots around that age, only when they are at most max(30 min, 35% of the age) apart; the moment of publishing counts as 0;
+- otherwise "not captured" - never a guess.
 
-Group-level hypotheses are only written for groups with at least 3 posts.
+The latest-post card ranks a post among your last 10 posts **at the same age** when at least 3 older posts have a value for that age; otherwise it ranks by total impressions and says so. The rank in the Posts table and on post pages is by total impressions among all original posts.
+
+**Verdict icons.** Next to a metric: green check = within the 25th-75th percentile of the comparison posts, green up arrow = above, red down arrow = below. The tooltip names the comparison and its n; nothing is shown with fewer than 3 comparison posts, and a post that is still growing is not judged against finished totals.
 
 ## Automation
 
-Frequent snapshots give much better growth curves than a weekly pull. A good schedule is `npm run sync` a few times a day (or hourly while a post is fresh) and `npm run weekly` on Monday morning.
+First-hour numbers and same-age ranks only exist if a sync runs in the first hours after posting, so the sync should run by itself.
 
-**Windows Task Scheduler** (run in a terminal; replace the path with your project folder):
+**Windows:** `npm run schedule:install` registers two Task Scheduler tasks for your user (`scripts/schedule-sync.ps1`):
 
-```
-schtasks /Create /TN "X Analytics sync" /SC HOURLY /MO 6 /TR "cmd /c cd /d \"C:\path\to\x-analytics\" && npm run sync >> data\sync.log 2>&1"
-schtasks /Create /TN "X Analytics weekly" /SC WEEKLY /D MON /ST 09:00 /TR "cmd /c cd /d \"C:\path\to\x-analytics\" && npm run weekly >> data\weekly.log 2>&1"
-```
+- `X-Panel fresh sync` - every 15 minutes, posts from the last 2 days (`npm run sync:fresh`);
+- `X-Panel daily sync` - every day at 08:00, the normal 45-day sync.
 
-Remove them with `schtasks /Delete /TN "X Analytics sync"`. The PC must be on at those times.
+They run hidden (no window pops up), skip a run while the previous one is still going, and append to `data/sync.log` (rotated at 5 MB). They run only while you are logged on and the PC is on. Remove them with `npm run schedule:remove`.
 
 **cron** (Linux / macOS / a server):
 
 ```
-0 */6 * * *  cd /path/to/x-analytics && npm run sync   >> data/sync.log 2>&1
-0 9 * * 1    cd /path/to/x-analytics && npm run weekly >> data/weekly.log 2>&1
+*/15 * * * *  cd /path/to/x-analytics && npm run sync:fresh >> data/sync.log 2>&1
+0 8 * * *     cd /path/to/x-analytics && npm run sync       >> data/sync.log 2>&1
 ```
 
 **GitHub Actions** works too, but the database then has to live somewhere persistent (committed to a private repo or stored as an artifact) and the four X keys go into repository secrets. Not needed for local use.
 
-API cost: X bills about $0.001 per own post read, and re-reading the same post within one UTC day is not billed again. An incremental sync touches roughly 100 posts, so several syncs a day cost around $0.10 per day at most. Check the actual price in the X developer console.
+API cost: X bills about $0.001 per own post read and $0.01 per profile lookup, and re-reading the same resource within one UTC day is not billed again. So the 15-minute schedule costs about the same as one sync a day: roughly $0.15 per day (about $4.50 a month) for a ~120-post window. Check the actual price in the X developer console.
 
 ## Claude Desktop (MCP)
 
@@ -200,10 +187,10 @@ The Claude Desktop chat can read this dashboard's data through a local MCP serve
 | Tool | What it returns | X API cost |
 |---|---|---|
 | `get_overview` | Overview page: period totals and medians, change vs the previous period, best / lowest-reach post, followers | none |
-| `list_posts` | Posts table: filters (period, week, dates, topic, format, type, hook, min impressions, text, kind) and sorting | none |
-| `get_post` | One post (by id, X id or URL): full text, tags, all metrics and rates, scores and their components, snapshot history | none |
-| `get_breakdown` | Content / Timing pages: groups by topic, subtopic, type, hook, format, news, time slot, weekday or hour, with n and low-sample flags | none |
-| `get_weekly_report` | Weekly report as Markdown (default: last completed week; `current` for the running week) | none |
+| `list_posts` | Posts table: filters (period, week, dates, series, topic, format, type, hook, min impressions, text, kind) and sorting; every row carries series and rank | none |
+| `get_post` | One post (by id, X id or URL): full text, tags and series, all metrics and rates, scores and their components, rank, early performance (1h / 6h / 24h vs other posts), snapshot history | none |
+| `get_recent_performance` | The latest-post cards for the last N posts: age, rank (same age or total), first-hour impressions, verdicts for impressions, engagement and bookmark rate | none |
+| `get_breakdown` | Content / Timing pages: groups by series, topic, subtopic, type, hook, format, news, time slot, weekday or hour, with n and low-sample flags | none |
 | `get_outliers` | Outliers page: posts far above / below baseline, low distribution with high engagement quality | none |
 | `get_activity` | Activity page: posts per day, streaks, peak hour, top format | none |
 | `get_data_status` | Last sync, recent sync runs, data-quality warnings, capability report | none |
@@ -242,7 +229,7 @@ Replace `C:/path/to/x-analytics` with your project folder (forward slashes work 
 ## Limitations
 
 - **Private metrics expire.** Profile visits, link clicks, X-reported engagements and video quartiles are only served for posts up to about 30 days old. Posts older than that when tracking began will never have them. Syncing regularly keeps them for everything published from now on.
-- **History starts when tracking starts.** Growth curves exist only from the first sync. Early-hours data for older posts was never collected and cannot be recovered.
+- **History starts when tracking starts.** Growth curves exist only from the first sync. Early-hours data (first hour, same-age ranks) exists only for posts published while the scheduled sync was running; for older posts it was never collected and cannot be recovered.
 - **Impressions over time are by publish date.** X does not expose account impressions per day, so the time charts show impressions earned to date by the posts published in each period.
 - **Young posts are still growing.** Posts under 48 hours old at the last sync are flagged; comparisons with older posts understate them.
 - **Correlation is not causation.** Topic, hook, format and timing overlap heavily in a small history. A group with a higher median is a reason to run a test, not proof that the tag caused the result. Nothing here says why X distributed a post the way it did.
@@ -254,13 +241,13 @@ Replace `C:/path/to/x-analytics` with your project folder (forward slashes work 
 
 ```
 src/lib/x/            X API client (OAuth 1.0a), payload mapping, sync
-src/lib/analytics/    rates, baselines, scores, outliers, weekly report
-src/lib/classify/     taxonomy, rule-based classifier, optional AI classifier
+src/lib/analytics/    rates, baselines, scores, outliers, activity, early growth
+src/lib/classify/     taxonomy, rule-based classifier (incl. series), optional AI classifier
+src/lib/mcp/          MCP server tools for Claude Desktop
 src/lib/db.ts         SQLite schema and migrations
 src/app/              dashboard pages and API routes
 src/components/       UI components and charts
-scripts/              sync, weekly, classify, audit, import, self-test
-data/                 analytics.db and backups (not committed)
-reports/              weekly reports as Markdown (generated locally, not committed)
+scripts/              sync, schedule, classify, audit, import, MCP, self-test
+data/                 analytics.db, backups and sync.log (not committed)
 x_collect.py          the original Python collector (kept, still works, no longer needed)
 ```

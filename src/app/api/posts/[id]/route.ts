@@ -19,6 +19,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     topic: text(body.topic), subtopic: text(body.subtopic), content_type: text(body.content_type), hook_type: text(body.hook_type),
     is_news: typeof body.is_news === "boolean" ? body.is_news : body.is_news === null ? null : undefined,
     format: text(body.format),
+    series: text(body.series),
   }, "manual");
   if (!ok) return NextResponse.json({ error: "Post not found" }, { status: 404 });
   return NextResponse.json({ ok: true });

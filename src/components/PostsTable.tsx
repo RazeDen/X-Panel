@@ -7,9 +7,12 @@ import { shortDate } from "@/lib/time";
 import type { SlimPost } from "@/lib/slim";
 import { useUrlState, UrlTabs } from "./filters";
 
-type SortKey = "date" | "impressions" | "likes" | "replies" | "reposts" | "bookmarks" | "profileVisits" | "er" | "distribution" | "quality" | "topic" | "format" | "hook";
+type SortKey = "date" | "rank" | "firstHour" | "series" | "impressions" | "likes" | "replies" | "reposts" | "bookmarks" | "profileVisits" | "er" | "distribution" | "quality" | "topic" | "format" | "hook";
 const pick: Record<SortKey, (p: SlimPost, rates: boolean) => number | string | null> = {
   date: (p) => p.createdAt,
+  rank: (p) => (p.rank === null ? null : -p.rank),
+  firstHour: (p) => p.firstHour ?? null,
+  series: (p) => p.series,
   impressions: (p) => p.impressions,
   likes: (p, r) => (r ? p.likeRate : p.likes),
   replies: (p, r) => (r ? p.replyRate : p.replies),
@@ -44,7 +47,7 @@ export function PostsTable({ posts, compact = false }: { posts: SlimPost[]; comp
 
   const head = (key: SortKey, label: string, right = true, title?: string) => (
     <th className={`th ${right ? "text-right" : ""}`} title={title} aria-sort={sort === key ? (dir === 1 ? "ascending" : "descending") : "none"}>
-      <button type="button" className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-ink ${sort === key ? "text-ink" : ""}`}
+      <button type="button" className={`inline-flex items-center gap-1 hover:text-ink ${sort === key ? "text-ink" : ""}`}
         onClick={() => set({ sort: key === "date" ? null : key, dir: sort === key && dir === -1 ? "asc" : null })}>
         {label}
         <span aria-hidden className="text-[9px]">{sort === key ? (dir === 1 ? "▲" : "▼") : ""}</span>
@@ -62,14 +65,17 @@ export function PostsTable({ posts, compact = false }: { posts: SlimPost[]; comp
         </div>
       )}
       <div className="scroll-x">
-        <table className="w-full min-w-[1120px] border-collapse">
+        <table className="w-full min-w-[1280px] border-collapse">
           <thead className="border-b border-line">
             <tr>
+              {head("rank", "#", false, "Rank by impressions among all your original posts")}
               {head("date", "Date", false)}
               <th className="th">Post</th>
+              {head("series", "Series", false)}
               {head("topic", "Topic", false)}
               {head("format", "Format", false)}
               {head("hook", "Hook", false)}
+              {head("firstHour", "1h", true, "Impressions after the first hour (only when a sync captured it; ≈ = interpolated)")}
               {head("impressions", "Impr.")}
               {head("likes", "Likes")}
               {head("replies", "Replies")}
@@ -83,6 +89,7 @@ export function PostsTable({ posts, compact = false }: { posts: SlimPost[]; comp
           <tbody>
             {sorted.map((p) => (
               <tr key={p.id} onClick={() => router.push(`/posts/${p.id}`)} className="cursor-pointer border-b border-line/60 transition-colors last:border-0 hover:bg-raised/60">
+                <td className="td num text-muted">{p.rank ?? "—"}</td>
                 <td className="td num whitespace-nowrap text-muted">
                   <span className="text-ink2">{shortDate(p.localDate)}</span> {p.localTime}
                 </td>
@@ -94,9 +101,11 @@ export function PostsTable({ posts, compact = false }: { posts: SlimPost[]; comp
                     {p.outlier && <span className={`chip ${p.outlier === "below" ? "border-bad/40 text-bad" : "border-good/40 text-good"}`}>{p.outlier === "below" ? "▼ below baseline" : p.outlier === "far_above" ? "▲ far above baseline" : "▲ above baseline"}</span>}
                   </span>
                 </td>
+                <td className="td whitespace-nowrap">{p.series && p.series !== "Other" ? p.series : <span className="text-muted">{p.series ?? "—"}</span>}</td>
                 <td className="td whitespace-nowrap">{p.topic ?? <span className="text-muted">Untagged</span>}</td>
                 <td className="td whitespace-nowrap">{p.format ?? "—"}</td>
                 <td className="td whitespace-nowrap">{p.hook ?? <span className="text-muted">—</span>}</td>
+                <td className="td num text-right">{p.firstHour === null || p.firstHour === undefined ? <span className="text-muted">—</span> : `${p.firstHourEstimated ? "≈" : ""}${fmtInt(p.firstHour)}`}</td>
                 <td className="td num text-right font-medium text-ink">{fmtInt(p.impressions)}</td>
                 <td className="td num text-right">{cell(p.likes, p.likeRate)}</td>
                 <td className="td num text-right">{cell(p.replies, p.replyRate)}</td>
@@ -108,7 +117,7 @@ export function PostsTable({ posts, compact = false }: { posts: SlimPost[]; comp
               </tr>
             ))}
             {!sorted.length && (
-              <tr><td colSpan={13} className="px-4 py-10 text-center text-[13px] text-muted">No posts match these filters.</td></tr>
+              <tr><td colSpan={16} className="px-4 py-10 text-center text-[13px] text-muted">No posts match these filters.</td></tr>
             )}
           </tbody>
         </table>

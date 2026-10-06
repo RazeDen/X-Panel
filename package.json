@@ -2,7 +2,7 @@
   "name": "x-analytics",
   "version": "1.0.0",
   "private": true,
-  "description": "Personal X (Twitter) analytics: sync, history, weekly reports and a local dashboard.",
+  "description": "Personal X (Twitter) analytics: sync, metric history, early-growth tracking and a local dashboard.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -13,9 +13,11 @@
     "sync": "tsx scripts/sync.ts",
     "sync:x": "tsx scripts/sync.ts",
     "sync:full": "tsx scripts/sync.ts --full",
+    "sync:fresh": "tsx scripts/sync.ts --days=2",
+    "schedule:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/schedule-sync.ps1",
+    "schedule:remove": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/schedule-sync.ps1 -Remove",
     "import:legacy": "tsx scripts/import-legacy.ts",
     "classify": "tsx scripts/classify.ts",
-    "weekly": "tsx scripts/weekly.ts",
     "test": "tsx scripts/selftest.ts",
     "mcp": "tsx scripts/mcp.ts",
     "mcp:install": "tsx scripts/install-mcp.ts"

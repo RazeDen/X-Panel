@@ -9,7 +9,7 @@ import { GroupTable } from "@/components/GroupTable";
 import { HBars } from "@/components/HBars";
 
 export const dynamic = "force-dynamic";
-const PARAM: Record<string, string> = { topic: "topic", format: "format", content_type: "ctype", hook_type: "hook" };
+const PARAM: Record<string, string> = { series: "series", topic: "topic", format: "format", content_type: "ctype", hook_type: "hook" };
 
 export default async function ContentPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ds = getDataset();
@@ -17,13 +17,13 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const f = parseFilters(sp, { range: "90d" });
   const win = dateWindow(f);
-  const dimKey = DIMENSIONS.some((d) => d.key === sp.dim) ? (sp.dim as string) : "topic";
+  const dimKey = DIMENSIONS.some((d) => d.key === sp.dim) ? (sp.dim as string) : "series";
   const dim = DIMENSIONS.find((d) => d.key === dimKey)!;
   const posts = applyFilters(ds.originals, f);
   const rows = groupPosts(posts, (p) => dimensionValue(p, dimKey));
   const overall = summarize(posts);
   const tags = tagValues(ds.originals);
-  const base = { range: f.range !== "all" ? f.range : "all", week: f.week, from: f.from, to: f.to, topic: f.topic, format: f.format, ctype: f.ctype, hook: f.hook };
+  const base = { range: f.range !== "all" ? f.range : "all", week: f.week, from: f.from, to: f.to, series: f.series, topic: f.topic, format: f.format, ctype: f.ctype, hook: f.hook };
   const hrefFor: Record<string, string> = {};
   if (PARAM[dimKey]) for (const r of rows) hrefFor[r.key] = `/posts${toQuery({ ...base, [PARAM[dimKey]]: r.key })}`;
   const untagged = rows.find((r) => r.key === "Untagged");
@@ -32,9 +32,9 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <PageHeader title="Content" subtitle="Performance grouped by how posts are tagged. Rates are medians of per-post rates. Groups with fewer than 3 posts are dimmed and marked low sample."
-        tabs={<UrlTabs variant="underline" param="dim" fallback="topic" options={DIMENSIONS.map((d) => ({ key: d.key, label: d.label }))} />} />
-      <FilterBar show={["range", "topic", "format", "ctype", "hook"]} defaultRange="90d" windowLabel={win.label}
-        options={{ topic: tags.topic, format: tags.format, ctype: tags.content_type, hook: tags.hook_type }}
+        tabs={<UrlTabs variant="underline" param="dim" fallback="series" options={DIMENSIONS.map((d) => ({ key: d.key, label: d.label }))} />} />
+      <FilterBar show={["range", "series", "topic", "format", "ctype", "hook"]} defaultRange="90d" windowLabel={win.label}
+        options={{ series: tags.series, topic: tags.topic, format: tags.format, ctype: tags.content_type, hook: tags.hook_type }}
         count={`${win.label} · ${posts.length} posts · overall median ${fmtCompact(overall.medianImpressions)} impr., ${fmtRate(overall.medianEngagementRate)} ER`} />
       {dimKey !== "format" && auto > 0 && (
         <div className="mb-4"><Notice>{auto} of {posts.length} posts here carry automatic keyword tags that nobody has reviewed. A wrong tag puts a post in the wrong group - open a post to correct it.</Notice></div>

@@ -48,9 +48,9 @@ async function main() {
   const { runSync } = await import("../src/lib/x/sync");
   const { XApiError } = await import("../src/lib/x/client");
   const { loadPosts, getDataset, toPost } = await import("../src/lib/data");
-  const { buildWeeklyReport } = await import("../src/lib/analytics/weekly");
+  const { impressionsAtAge, statusOf, recentCard, ageLabel } = await import("../src/lib/analytics/growth");
   const { saveClassification } = await import("../src/lib/classify/store");
-  const { classifyByRules, deriveFormat } = await import("../src/lib/classify/rules");
+  const { classifyByRules, deriveFormat, deriveSeries } = await import("../src/lib/classify/rules");
   const { applyFilters, parseFilters } = await import("../src/lib/filters");
   const { dataWarnings } = await import("../src/lib/warnings");
 
@@ -81,6 +81,9 @@ async function main() {
 
   console.log("Classification");
   const c = classifyByRules("ANTHROPIC ENGINEER LEAKED A FILE WHERE OPUS 5.5 BUILDS AN ANIMATION\n\nmore text");
+  check("series rules", deriveSeries("ANTHROPIC DESIGNER LEAKED A 6-RULE FILE THAT TURNS OPUS 5.5 INTO AN ART DIRECTOR", ["video"]) === "Animated file"
+    && deriveSeries("CLAUDE ANIMATED JEV SORTING 3,412 LEADS IN 15.7 SECONDS - 1,440 FRAMES, 1 HTML FILE", ["video"]) === "Animated scene"
+    && deriveSeries("ANTHROPIC ENGINEER LEAKED A FILE WHERE OPUS 5.5 BUILDS A 20-SECOND ANIMATION", ["photo"]) === "Other");
   check("rule classifier tags topic and hook", c.topic === "Claude" && c.hook_type === "Leak", JSON.stringify(c));
   check("format rules", deriveFormat({ article: false, isThreadRoot: false, mediaTypes: ["video"], hasLink: false }) === "Video" && deriveFormat({ article: true, isThreadRoot: false, mediaTypes: [], hasLink: false }) === "Article" && deriveFormat({ article: false, isThreadRoot: false, mediaTypes: [], hasLink: false }) === "Text");
 
@@ -88,7 +91,6 @@ async function main() {
   const db = getDb();
   check("migrations created the tables", (db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('posts','metric_snapshots','sync_runs','weekly_reports','capabilities','account_snapshots')").get() as { n: number }).n === 6);
   check("empty dataset loads", getDataset().empty === true && loadPosts().originals.length === 0);
-  check("weekly report on empty data", buildWeeklyReport([], "2026-W40")?.summary.n === 0);
 
   console.log("API failure handling");
   const count = () => (db.prepare("SELECT (SELECT COUNT(*) FROM posts) AS p, (SELECT COUNT(*) FROM metric_snapshots) AS s").get() as { p: number; s: number });
@@ -171,11 +173,23 @@ async function main() {
   check("filters: topic", applyFilters(posts, parseFilters({ topic: "My Topic", range: "all" })).length === 1);
   check("filters: text search", applyFilters(posts, parseFilters({ q: "post 102", range: "all" })).length === 1);
   check("too little history -> no scores invented", originals.every((p) => p.score === null));
-  const wk = originals[0].weekKey;
-  const rep = buildWeeklyReport(originals, wk)!;
-  const inWeek = originals.filter((p) => p.weekKey === wk);
-  check("weekly totals match their posts", rep.summary.n === inWeek.length && (rep.summary.totalImpressions ?? 0) === inWeek.reduce((a, p) => a + (p.impressions ?? 0), 0));
-  check("small weeks carry a sample-size warning", rep.summary.n >= 3 || rep.warnings.some((w) => /Only \d+ post/.test(w)));
+  check("rank by impressions (1 = most)", originals.find((p) => p.x_id === "101")?.rank === 1 && originals.every((p) => p.impressions === null ? p.rank === null : p.rank! >= 1));
+  check("series is set on every original", originals.every((p) => !!p.series));
+  saveClassification(p101.id as number, { series: "Animated file" }, "manual");
+  (await import("../src/lib/x/sync")).postProcess();
+  check("manual series survives re-classification", (db.prepare("SELECT series, series_source FROM posts WHERE x_id='101'").get() as { series: string; series_source: string }).series_source === "manual");
+
+  console.log("Early growth (first hour, same-age rank)");
+  const t0 = "2026-10-01T10:00:00.000Z";
+  const at = (min: number, imp: number | null) => ({ capturedAt: new Date(Date.parse(t0) + min * 60000).toISOString(), impressions: imp });
+  check("measured value near the target age", impressionsAtAge(t0, [at(58, 400), at(200, 900)], 1)?.estimated === false && impressionsAtAge(t0, [at(58, 400)], 1)?.value === 400);
+  const est = impressionsAtAge(t0, [at(50, 300), at(70, 500)], 1);
+  check("interpolated between close snapshots", est?.estimated === true && est.value === 400);
+  check("no value when snapshots are far apart", impressionsAtAge(t0, [at(10, 50), at(600, 2000)], 1) === null && impressionsAtAge(t0, [], 1) === null);
+  check("status needs 3 comparison posts", statusOf(10, [1, 2]) === null && statusOf(10, [1, 2, 3])?.status === "above" && statusOf(2, [1, 2, 3])?.status === "typical");
+  const card = recentCard(originals, new Map(), 0);
+  check("latest-post card falls back to total-impressions rank without early data", !!card && (card.rank === null || card.rank.sameAge === false) && card.firstHour.value === null);
+  check("age label", ageLabel(9 * 24 + 1.5) === "First 9 days 1 hour" && ageLabel(0.5) === "First 30 min");
   check("capability report built", (db.prepare("SELECT status FROM capabilities WHERE key='impressions'").get() as { status: string } | undefined)?.status === "partial");
 
   console.log("MCP server (Claude Desktop tools)");
@@ -193,14 +207,18 @@ async function main() {
   const call = async (name: string, args: Record<string, unknown> = {}) => (await client.callTool({ name, arguments: args })) as ToolResult;
   const body = async (name: string, args: Record<string, unknown> = {}) => JSON.parse((await call(name, args)).content[0].text);
   const tools = (await client.listTools()).tools.map((t) => t.name);
-  check("MCP lists all tools", ["get_overview", "list_posts", "get_post", "get_breakdown", "get_weekly_report", "get_outliers", "get_activity", "get_data_status", "run_sync"].every((t) => tools.includes(t)), tools.join(","));
+  check("MCP lists all tools", ["get_overview", "list_posts", "get_post", "get_breakdown", "get_recent_performance", "get_outliers", "get_activity", "get_data_status", "run_sync"].every((t) => tools.includes(t)), tools.join(","));
   check("MCP overview matches the dashboard set", (await body("get_overview", { range: "all" })).current.n === originals.length);
   const listed = await body("list_posts", { range: "all", sort: "impressions" });
   check("MCP list_posts filters and sorts", listed.matched === originals.length && listed.posts[0].impressions >= listed.posts[1].impressions);
   const one = await body("get_post", { x_id: "https://x.com/tester/status/101" });
   check("MCP get_post by URL with history", one.metrics.impressions === 1600 && one.history.snapshots === 3 && one.metrics.linkClicks === null);
   check("MCP unknown post is an error, not empty data", (await call("get_post", { id: 99999 })).isError === true);
-  check("MCP weekly report is Markdown", /Week \d+/.test((await call("get_weekly_report", { week: wk })).content[0].text));
+  check("MCP weekly report tool is gone", !tools.includes("get_weekly_report"));
+  const recent = await body("get_recent_performance", { count: 3 });
+  check("MCP recent performance cards", Array.isArray(recent) && recent.length === 3 && "firstHour" in recent[0] && "rank" in recent[0]);
+  check("MCP breakdown by series", (await body("get_breakdown", { dimension: "series", range: "all" })).groups.some((g: { key: string }) => g.key === "Animated file"));
+  check("MCP get_post has early performance and rank", Array.isArray(one.earlyPerformance) && one.rankByImpressions === 1);
   check("MCP breakdown carries sample size", (await body("get_breakdown", { dimension: "topic", range: "all" })).groups.every((g: { n: number; lowSample: boolean }) => typeof g.n === "number" && typeof g.lowSample === "boolean"));
   check("MCP data status", (await body("get_data_status")).storedPosts === posts.length);
   const synced = await body("run_sync", {});

@@ -9,6 +9,7 @@ export interface Filters {
   to: string | null;
   topic: string | null;
   format: string | null;
+  series: string | null;
   ctype: string | null;
   hook: string | null;
   minImp: number | null;
@@ -44,6 +45,7 @@ export function parseFilters(params: Params, defaults: Partial<Filters> = {}): F
     to: date(get(params, "to")),
     topic: get(params, "topic"),
     format: get(params, "format"),
+    series: get(params, "series"),
     ctype: get(params, "ctype"),
     hook: get(params, "hook"),
     minImp: Number.isFinite(min) && min > 0 ? min : null,
@@ -82,6 +84,7 @@ export function applyFilters(posts: Post[], f: Filters, now: Date = new Date()):
     if (!inWindow(p, start, end)) return false;
     if (f.topic && (p.topic ?? "Untagged") !== f.topic) return false;
     if (f.format && (p.format ?? "Untagged") !== f.format) return false;
+    if (f.series && (p.series ?? "Untagged") !== f.series) return false;
     if (f.ctype && (p.content_type ?? "Untagged") !== f.ctype) return false;
     if (f.hook && (p.hook_type ?? "Untagged") !== f.hook) return false;
     if (f.minImp !== null && (p.impressions === null || p.impressions < f.minImp)) return false;

@@ -1,6 +1,6 @@
 import { getDb, getMeta, setMeta, METRIC_KEYS, type MetricValues, type PostRow } from "../db";
 import { computeRates } from "../metrics";
-import { classifyByRules, deriveFormat } from "../classify/rules";
+import { classifyByRules, deriveFormat, deriveSeries } from "../classify/rules";
 import { refreshCapabilities } from "../capabilities";
 import { redact } from "../env";
 import { XClient, XApiError } from "./client";
@@ -27,7 +27,8 @@ const TWEET_FIELDS = [
   "created_at", "author_id", "lang", "conversation_id", "in_reply_to_user_id", "referenced_tweets",
   "attachments", "entities", "note_tweet", "article", "public_metrics", "non_public_metrics", "organic_metrics",
 ].join(",");
-const MEDIA_FIELDS = "type,duration_ms,public_metrics,non_public_metrics,organic_metrics";
+// preview_image_url / url only add fields to the existing media expansion: no extra reads, no extra cost.
+const MEDIA_FIELDS = "type,duration_ms,preview_image_url,url,public_metrics,non_public_metrics,organic_metrics";
 // Referenced posts are deliberately NOT expanded: they would be extra (non-owned) post reads on every sync.
 const EXPANSIONS = "attachments.media_keys";
 
@@ -169,7 +170,7 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
 const POST_STRUCT_COLS = [
   "url", "text", "short_text", "article_title", "created_at", "kind", "is_self_reply", "is_self_quote", "quoted_is_article",
   "referenced_id", "conversation_id", "in_reply_to_user_id", "lang", "has_media", "has_link", "media_types",
-  "video_duration_ms", "external_urls", "non_public_available", "raw_json",
+  "video_duration_ms", "media_preview", "external_urls", "non_public_available", "raw_json",
 ] as const;
 const RATE_COLS = [
   "like_rate", "reply_rate", "repost_rate", "quote_rate", "bookmark_rate", "engagement_rate",
@@ -207,7 +208,7 @@ export function writePosts(
       is_self_reply: m.is_self_reply ? 1 : 0, is_self_quote: m.is_self_quote ? 1 : 0, quoted_is_article: 0,
       referenced_id: m.referenced_id, conversation_id: m.conversation_id, in_reply_to_user_id: m.in_reply_to_user_id, lang: m.lang,
       has_media: m.has_media ? 1 : 0, has_link: m.has_link ? 1 : 0, media_types: JSON.stringify(m.media_types),
-      video_duration_ms: m.video_duration_ms, external_urls: JSON.stringify(m.external_urls),
+      video_duration_ms: m.video_duration_ms, media_preview: m.media_preview, external_urls: JSON.stringify(m.external_urls),
       non_public_available: m.non_public_available ? 1 : 0, raw_json: JSON.stringify(m.raw),
       ...m.metrics, ...computeRates(m.metrics),
     };
@@ -251,6 +252,7 @@ export function postProcess(): void {
     `);
     const rows = db.prepare("SELECT * FROM posts").all() as PostRow[];
     const setFormat = db.prepare("UPDATE posts SET format = ?, format_source = 'rule' WHERE id = ?");
+    const setSeries = db.prepare("UPDATE posts SET series = ?, series_source = 'rule' WHERE id = ?");
     const setClass = db.prepare(
       "UPDATE posts SET topic = ?, subtopic = ?, content_type = ?, hook_type = ?, is_news = ?, class_source = 'rule', class_updated_at = ? WHERE id = ?"
     );
@@ -264,6 +266,10 @@ export function postProcess(): void {
           hasLink: !!p.has_link,
         });
         if (format !== p.format || p.format_source !== "rule") setFormat.run(format, p.id);
+      }
+      if (p.kind !== "repost" && p.series_source !== "manual") {
+        const series = deriveSeries(p.text, safeArray(p.media_types));
+        if (series !== p.series || p.series_source !== "rule") setSeries.run(series, p.id);
       }
       if (p.kind !== "repost" && (p.class_source === null || p.class_source === "rule")) {
         const c = classifyByRules(p.text, p.article_title);

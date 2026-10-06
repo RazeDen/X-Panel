@@ -26,7 +26,6 @@ export default function DataPage() {
   const caps = [...ds.capabilities].sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key));
   const kinds = db.prepare("SELECT kind, COUNT(*) AS n FROM posts GROUP BY kind").all() as { kind: string; n: number }[];
   const sources = db.prepare("SELECT COALESCE(class_source, 'none') AS s, COUNT(*) AS n FROM posts WHERE kind IN ('post','quote') AND article_title IS NULL GROUP BY 1").all() as { s: string; n: number }[];
-  const reports = (db.prepare("SELECT COUNT(*) AS n FROM weekly_reports").get() as { n: number }).n;
   const ai = aiAvailable();
 
   return (
@@ -41,11 +40,10 @@ export default function DataPage() {
             <div><dt className="text-muted">Stored posts</dt><dd className="text-ink2">{kinds.map((k) => `${k.n} ${k.kind}`).join(", ") || "0"}</dd></div>
             <div><dt className="text-muted">Metric snapshots</dt><dd className="text-ink2">{fmtInt(ds.snapshotCount)}</dd></div>
             <div><dt className="text-muted">Follower readings</dt><dd className="text-ink2">{ds.followers.length}</dd></div>
-            <div><dt className="text-muted">Saved weekly reports</dt><dd className="text-ink2">{reports}</dd></div>
             <div><dt className="text-muted">Tag sources</dt><dd className="text-ink2">{sources.map((s) => `${s.n} ${s.s}`).join(", ") || "none"}</dd></div>
             <div className="col-span-2 sm:col-span-3"><dt className="text-muted">Database file</dt><dd className="break-all font-mono text-[11px] text-ink2">{dbPath()}</dd></div>
           </dl>
-          <p className="mt-3 text-xs leading-5 text-muted">Timezone for days, weeks and time slots: {TZ}. AI features: {ai ? `enabled (${aiModel()})` : "off - set ANTHROPIC_API_KEY in .env to enable AI tagging and the written weekly analysis"}.</p>
+          <p className="mt-3 text-xs leading-5 text-muted">Timezone for days, weeks and time slots: {TZ}. AI features: {ai ? `enabled (${aiModel()})` : "off - set ANTHROPIC_API_KEY in .env to enable AI tagging"}.</p>
         </Card>
 
         <Card title="Data quality" subtitle="Anything that limits how far the numbers can be trusted.">
@@ -107,10 +105,12 @@ export default function DataPage() {
           <div><h3 className="mb-1 font-medium text-ink">What counts as a post</h3><p>Analysis covers original posts and quote posts. Replies, reposts and X Articles are stored and browsable but excluded from baselines, scores, reports and post counts - their reach is not comparable. Quote posts that promote an article are counted as posts.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Median vs average</h3><p>Reach is heavy-tailed: one viral post can multiply the average while most posts did not change. The median (the middle post) is the headline everywhere; averages are shown beside it for contrast.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Rates</h3><p>Every rate is per impression. Engagement rate = (likes + replies + reposts + quotes + bookmarks) / impressions. A rate is blank when impressions are zero or the metric is unavailable - never zero by default. Group rates are medians of per-post rates.</p></div>
-          <div><h3 className="mb-1 font-medium text-ink">Baselines</h3><p>Rolling windows of 7, 30 and 90 days plus all time. Weekly reports compare a week with the previous week and with the 30 days before it. Every comparison shows its sample size; groups under {MIN_SAMPLE} posts are marked low sample.</p></div>
+          <div><h3 className="mb-1 font-medium text-ink">Baselines</h3><p>Rolling windows of 7, 30 and 90 days plus all time; period cards compare with the previous period of equal length. Every comparison shows its sample size; groups under {MIN_SAMPLE} posts are marked low sample.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Distribution score</h3><p>Percentile of a post&apos;s impressions among your posts from the {REFERENCE_DAYS} days before it (all other posts if fewer than {MIN_REFERENCE}). 50 is a typical post. It measures reach only.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Engagement quality score</h3><p>Mean percentile of the available per-impression rates (like, reply, repost, bookmark, profile visit), equally weighted, against the same reference set. Kept separate from reach so a strong post with weak distribution can be told apart from a weak post.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Outliers</h3><p>Robust z-score on log10(impressions) using the median and MAD of the reference set: 2 or more is above baseline, 3.5 or more far above, -2 or less below. Descriptive only - not a prediction and not an explanation.</p></div>
+          <div><h3 className="mb-1 font-medium text-ink">Series</h3><p>Your two main content lines: Animated file (an animated post built around a file, config, prompt or rule set) and Animated scene (an animation where something happens). Detected from the headline of video / GIF posts; correct any post on its page and your choice is never overwritten.</p></div>
+          <div><h3 className="mb-1 font-medium text-ink">Early performance and rank</h3><p>Impressions at 1h, 6h and 24h come only from stored snapshots: measured when a sync ran near that age, &asymp; when interpolated between two nearby snapshots, otherwise not captured. The latest-post card ranks a post among the last 10 at the same age when at least 3 older posts have a value for that age, otherwise by total impressions (labelled). Arrows: above the 75th / below the 25th percentile of the comparison posts; check = in between; nothing below 3 comparison posts.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Limits</h3><p>Posts under {MATURITY_HOURS}h old are flagged as still accumulating. Growth curves exist only from the moment tracking started. Tag-based breakdowns are correlations: topic, hook, format and timing overlap, and nothing here establishes cause.</p></div>
         </div>
       </Card>
