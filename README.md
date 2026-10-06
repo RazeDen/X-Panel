@@ -1,6 +1,6 @@
-# X Analytics
+# X-Panel
 
-A personal analytics system for one X (Twitter) account. It pulls your own posts through the X API, keeps a local history of their metrics in SQLite, tags every post, compares posts against your own baseline, writes a weekly report, and shows all of it in a local dashboard.
+A personal analytics system for one X (Twitter) account. It pulls your own posts through the X API, keeps a local history of their metrics in SQLite, tags every post, compares posts against your own baseline, writes a weekly report, and shows all of it in a local dashboard styled after the X Developer Console. An MCP server lets Claude Desktop query the same data.
 
 Everything runs on your machine. There is no login, no cloud service and no telemetry.
 
