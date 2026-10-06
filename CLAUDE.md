@@ -20,6 +20,7 @@ The owner talks to Claude in Ukrainian. Code, comments and commit messages stay 
 | `npm run db:migrate` | Apply schema migrations (every command also does this on open) |
 | `npm run import:legacy` | Import `posts_YYYY-MM-DD.json` from the old Python collector as historical snapshots |
 | `npm run mcp` | MCP server for Claude Desktop (stdio); normally started by Claude Desktop itself |
+| `npm run mcp:install` | Registers the MCP server in Claude Desktop's config; must run while Claude Desktop is fully closed |
 
 Run `npm run typecheck && npm test` after any change to `src/lib` or `scripts`.
 
@@ -36,7 +37,7 @@ Run `npm run typecheck && npm test` after any change to `src/lib` or `scripts`.
 
 ## MCP server (Claude Desktop)
 
-The owner's Claude Desktop chat reads the dashboard data through a local stdio MCP server: `scripts/mcp.ts` (entry: moves to the project root, sends all logs to stderr) and `src/lib/mcp/server.ts` (tools). Tools: `get_overview`, `list_posts`, `get_post`, `get_breakdown`, `get_weekly_report`, `get_outliers`, `get_activity`, `get_data_status`, and the paid `run_sync`. They reuse the same library functions as the pages, so numbers match the dashboard. Registered in `%APPDATA%\Claude\claude_desktop_config.json` as `x-analytics` (README "Claude Desktop (MCP)").
+The owner's Claude Desktop chat reads the dashboard data through a local stdio MCP server: `scripts/mcp.ts` (entry: moves to the project root, sends all logs to stderr) and `src/lib/mcp/server.ts` (tools). Tools: `get_overview`, `list_posts`, `get_post`, `get_breakdown`, `get_weekly_report`, `get_outliers`, `get_activity`, `get_data_status`, and the paid `run_sync`. They reuse the same library functions as the pages, so numbers match the dashboard. Registered in `%APPDATA%\Claude\claude_desktop_config.json` as `x-analytics` by `npm run mcp:install` (`scripts/install-mcp.ts`). Claude Desktop rewrites that file from memory, so never edit it while the app runs (an entry added that way on 2026-10-06 was lost); Claude Code runs inside that app, so the owner has to quit it and run the command from a separate terminal.
 
 - **Keep it in sync with the dashboard (owner's standing request).** Whenever a page, metric, filter, tag dimension, methodology rule or data-model field is added or changes significantly, update the matching tool(s) in `src/lib/mcp/server.ts`, the `INSTRUCTIONS` text, the README tool table and the MCP checks in `scripts/selftest.ts` in the same change, bump `MCP_VERSION`, and tell the owner to restart Claude Desktop.
 - stdout is the protocol channel: never write to stdout in code reachable from the MCP server; use `console.error`.

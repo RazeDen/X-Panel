@@ -51,6 +51,7 @@ X_ACCESS_TOKEN_SECRET=
 | `npm run import:legacy` | Imports `posts_YYYY-MM-DD.json` files written by the original `x_collect.py` as historical snapshots |
 | `npm test` | Self-test against a temporary database and a local mock of the X API. Spends no credits and does not touch your data |
 | `npm run typecheck` | TypeScript check |
+| `npm run mcp:install` | Registers the MCP server in Claude Desktop (run while Claude Desktop is closed) |
 
 `npm run weekly` prints a summary like this (illustrative numbers):
 
@@ -208,7 +209,13 @@ The Claude Desktop chat can read this dashboard's data through a local MCP serve
 | `get_data_status` | Last sync, recent sync runs, data-quality warnings, capability report | none |
 | `run_sync` | Runs a sync (same as the Sync button) | about $0.13 per incremental run |
 
-Setup (once): add this to `%APPDATA%\Claude\claude_desktop_config.json` (Claude Desktop: Settings → Developer → Edit Config), keeping any existing keys, then restart Claude Desktop:
+Setup (once, and again after moving the project folder):
+
+1. Quit Claude Desktop completely (tray icon → Quit). It keeps its config in memory and overwrites the file when it saves its own settings, so an entry added while it runs gets lost.
+2. In a terminal in the project folder run `npm run mcp:install`. It refuses to run while Claude Desktop is open, backs the config up, and adds only `mcpServers.x-analytics` with the paths of this folder.
+3. Start Claude Desktop. In a chat, the tools appear under the tools menu as `x-analytics`.
+
+The entry it writes looks like this (to add it by hand, edit `%APPDATA%\Claude\claude_desktop_config.json` while Claude Desktop is closed):
 
 ```json
 {

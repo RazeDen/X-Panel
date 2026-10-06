@@ -17,7 +17,8 @@
     "classify": "tsx scripts/classify.ts",
     "weekly": "tsx scripts/weekly.ts",
     "test": "tsx scripts/selftest.ts",
-    "mcp": "tsx scripts/mcp.ts"
+    "mcp": "tsx scripts/mcp.ts",
+    "mcp:install": "tsx scripts/install-mcp.ts"
   },
   "engines": {
     "node": ">=20"
