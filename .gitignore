@@ -21,3 +21,11 @@ __pycache__/
 # OS
 Desktop.ini
 Thumbs.db
+
+# personal analytics data - kept locally, never published
+reports/*.md
+posts_*.csv
+posts_*.json
+account_history*.csv
+data/tags-*.json
+Claude outputs/

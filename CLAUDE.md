@@ -19,6 +19,7 @@ The owner talks to Claude in Ukrainian. Code, comments and commit messages stay 
 | `npm run audit:x` | Live capability check (profile + 5 posts) and stored capability report |
 | `npm run db:migrate` | Apply schema migrations (every command also does this on open) |
 | `npm run import:legacy` | Import `posts_YYYY-MM-DD.json` from the old Python collector as historical snapshots |
+| `npm run mcp` | MCP server for Claude Desktop (stdio); normally started by Claude Desktop itself |
 
 Run `npm run typecheck && npm test` after any change to `src/lib` or `scripts`.
 
@@ -32,6 +33,15 @@ Run `npm run typecheck && npm test` after any change to `src/lib` or `scripts`.
 - **Wording.** Say "low distribution relative to baseline". Never claim "X suppressed this post" or explain why the algorithm did something.
 - **Private metrics expire.** `non_public_metrics`, `organic_metrics` and video quartiles exist only for posts under ~30 days old. API errors for older posts and for retweets on those fields are expected and non-fatal.
 - **Not offered by the API at all:** watch time, followers gained per post, media engagements / detail expands. `link_clicks` exists only for posts with a clickable link or card.
+
+## MCP server (Claude Desktop)
+
+The owner's Claude Desktop chat reads the dashboard data through a local stdio MCP server: `scripts/mcp.ts` (entry: moves to the project root, sends all logs to stderr) and `src/lib/mcp/server.ts` (tools). Tools: `get_overview`, `list_posts`, `get_post`, `get_breakdown`, `get_weekly_report`, `get_outliers`, `get_activity`, `get_data_status`, and the paid `run_sync`. They reuse the same library functions as the pages, so numbers match the dashboard. Registered in `%APPDATA%\Claude\claude_desktop_config.json` as `x-analytics` (README "Claude Desktop (MCP)").
+
+- **Keep it in sync with the dashboard (owner's standing request).** Whenever a page, metric, filter, tag dimension, methodology rule or data-model field is added or changes significantly, update the matching tool(s) in `src/lib/mcp/server.ts`, the `INSTRUCTIONS` text, the README tool table and the MCP checks in `scripts/selftest.ts` in the same change, bump `MCP_VERSION`, and tell the owner to restart Claude Desktop.
+- stdout is the protocol channel: never write to stdout in code reachable from the MCP server; use `console.error`.
+- Read tools never call the X API. `run_sync` does (about $0.13 per incremental run) and must say so in its description.
+- Same hard rules apply to tool output: nulls stay null, `n` always included, no causal claims.
 
 ## UI style
 

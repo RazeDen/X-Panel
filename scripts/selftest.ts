@@ -178,6 +178,35 @@ async function main() {
   check("small weeks carry a sample-size warning", rep.summary.n >= 3 || rep.warnings.some((w) => /Only \d+ post/.test(w)));
   check("capability report built", (db.prepare("SELECT status FROM capabilities WHERE key='impressions'").get() as { status: string } | undefined)?.status === "partial");
 
+  console.log("MCP server (Claude Desktop tools)");
+  const { createMcpServer } = await import("../src/lib/mcp/server");
+  const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+  const { InMemoryTransport } = await import("@modelcontextprotocol/sdk/inMemory.js");
+  let syncCalls = 0;
+  const fakeSync = (async () => { syncCalls++; return { runId: 0, mode: "incremental", windowStart: null, fetched: 3, inserted: 1, updated: 2, snapshots: 3, apiRequests: 2, warnings: [], account: { username: "tester", followers: 10 }, newPostIds: [] }; }) as unknown as typeof import("../src/lib/x/sync").runSync;
+  const mcpServer = createMcpServer({ sync: fakeSync });
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  await mcpServer.connect(st);
+  const client = new Client({ name: "selftest", version: "1" });
+  await client.connect(ct);
+  type ToolResult = { content: { type: string; text: string }[]; isError?: boolean };
+  const call = async (name: string, args: Record<string, unknown> = {}) => (await client.callTool({ name, arguments: args })) as ToolResult;
+  const body = async (name: string, args: Record<string, unknown> = {}) => JSON.parse((await call(name, args)).content[0].text);
+  const tools = (await client.listTools()).tools.map((t) => t.name);
+  check("MCP lists all tools", ["get_overview", "list_posts", "get_post", "get_breakdown", "get_weekly_report", "get_outliers", "get_activity", "get_data_status", "run_sync"].every((t) => tools.includes(t)), tools.join(","));
+  check("MCP overview matches the dashboard set", (await body("get_overview", { range: "all" })).current.n === originals.length);
+  const listed = await body("list_posts", { range: "all", sort: "impressions" });
+  check("MCP list_posts filters and sorts", listed.matched === originals.length && listed.posts[0].impressions >= listed.posts[1].impressions);
+  const one = await body("get_post", { x_id: "https://x.com/tester/status/101" });
+  check("MCP get_post by URL with history", one.metrics.impressions === 1600 && one.history.snapshots === 3 && one.metrics.linkClicks === null);
+  check("MCP unknown post is an error, not empty data", (await call("get_post", { id: 99999 })).isError === true);
+  check("MCP weekly report is Markdown", /Week \d+/.test((await call("get_weekly_report", { week: wk })).content[0].text));
+  check("MCP breakdown carries sample size", (await body("get_breakdown", { dimension: "topic", range: "all" })).groups.every((g: { n: number; lowSample: boolean }) => typeof g.n === "number" && typeof g.lowSample === "boolean"));
+  check("MCP data status", (await body("get_data_status")).storedPosts === posts.length);
+  const synced = await body("run_sync", {});
+  check("MCP run_sync uses the sync pipeline", synced.ok === true && synced.newPosts === 1 && syncCalls === 1);
+  await client.close();
+
   db.close();
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(`\n${passed} passed, ${failed} failed`);

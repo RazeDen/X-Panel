@@ -6,9 +6,10 @@ Everything runs on your machine. There is no login, no cloud service and no tele
 
 ## How to start
 
-Requirements: Node.js 20 or newer (22 LTS recommended) and the X API keys already stored in `.env`.
+Requirements: Node.js 20 or newer (22 LTS recommended) and an X developer app with OAuth 1.0a user-context keys (read access is enough). The X API is pay-per-use; see "API cost" under Automation.
 
 ```
+cp .env.example .env # then fill in your keys (see below)
 npm install          # once
 npm run db:migrate   # creates data/analytics.db if it does not exist (optional - every command does this)
 npm run sync         # first run downloads your whole timeline
@@ -21,7 +22,7 @@ Then, once a week:
 npm run weekly
 ```
 
-The `.env` file is the one created when the API was first connected. It needs four values (see `.env.example`):
+`.env` needs the four values of your X app (developer console: your app's keys and tokens). It is gitignored and never leaves your machine:
 
 ```
 X_CONSUMER_KEY=
@@ -171,11 +172,11 @@ Group-level hypotheses are only written for groups with at least 3 posts.
 
 Frequent snapshots give much better growth curves than a weekly pull. A good schedule is `npm run sync` a few times a day (or hourly while a post is fresh) and `npm run weekly` on Monday morning.
 
-**Windows Task Scheduler** (run in a terminal, adjust the path if the project moves):
+**Windows Task Scheduler** (run in a terminal; replace the path with your project folder):
 
 ```
-schtasks /Create /TN "X Analytics sync" /SC HOURLY /MO 6 /TR "cmd /c cd /d D:\Work\Projects\Twitter\Analytic && npm run sync >> data\sync.log 2>&1"
-schtasks /Create /TN "X Analytics weekly" /SC WEEKLY /D MON /ST 09:00 /TR "cmd /c cd /d D:\Work\Projects\Twitter\Analytic && npm run weekly >> data\weekly.log 2>&1"
+schtasks /Create /TN "X Analytics sync" /SC HOURLY /MO 6 /TR "cmd /c cd /d \"C:\path\to\x-analytics\" && npm run sync >> data\sync.log 2>&1"
+schtasks /Create /TN "X Analytics weekly" /SC WEEKLY /D MON /ST 09:00 /TR "cmd /c cd /d \"C:\path\to\x-analytics\" && npm run weekly >> data\weekly.log 2>&1"
 ```
 
 Remove them with `schtasks /Delete /TN "X Analytics sync"`. The PC must be on at those times.
@@ -183,13 +184,47 @@ Remove them with `schtasks /Delete /TN "X Analytics sync"`. The PC must be on at
 **cron** (Linux / macOS / a server):
 
 ```
-0 */6 * * *  cd /path/to/Analytic && npm run sync   >> data/sync.log 2>&1
-0 9 * * 1    cd /path/to/Analytic && npm run weekly >> data/weekly.log 2>&1
+0 */6 * * *  cd /path/to/x-analytics && npm run sync   >> data/sync.log 2>&1
+0 9 * * 1    cd /path/to/x-analytics && npm run weekly >> data/weekly.log 2>&1
 ```
 
 **GitHub Actions** works too, but the database then has to live somewhere persistent (committed to a private repo or stored as an artifact) and the four X keys go into repository secrets. Not needed for local use.
 
 API cost: X bills about $0.001 per own post read, and re-reading the same post within one UTC day is not billed again. An incremental sync touches roughly 100 posts, so several syncs a day cost around $0.10 per day at most. Check the actual price in the X developer console.
+
+## Claude Desktop (MCP)
+
+The Claude Desktop chat can read this dashboard's data through a local MCP server (stdio: no web server, no open port, nothing reachable from the internet). Ask things like "how did last week go?" or "which hooks work best over 90 days?" and Claude calls the tools below.
+
+| Tool | What it returns | X API cost |
+|---|---|---|
+| `get_overview` | Overview page: period totals and medians, change vs the previous period, best / lowest-reach post, followers | none |
+| `list_posts` | Posts table: filters (period, week, dates, topic, format, type, hook, min impressions, text, kind) and sorting | none |
+| `get_post` | One post (by id, X id or URL): full text, tags, all metrics and rates, scores and their components, snapshot history | none |
+| `get_breakdown` | Content / Timing pages: groups by topic, subtopic, type, hook, format, news, time slot, weekday or hour, with n and low-sample flags | none |
+| `get_weekly_report` | Weekly report as Markdown (default: last completed week; `current` for the running week) | none |
+| `get_outliers` | Outliers page: posts far above / below baseline, low distribution with high engagement quality | none |
+| `get_activity` | Activity page: posts per day, streaks, peak hour, top format | none |
+| `get_data_status` | Last sync, recent sync runs, data-quality warnings, capability report | none |
+| `run_sync` | Runs a sync (same as the Sync button) | about $0.13 per incremental run |
+
+Setup (once): add this to `%APPDATA%\Claude\claude_desktop_config.json` (Claude Desktop: Settings → Developer → Edit Config), keeping any existing keys, then restart Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "x-analytics": {
+      "command": "C:/Program Files/nodejs/node.exe",
+      "args": [
+        "C:/path/to/x-analytics/node_modules/tsx/dist/cli.mjs",
+        "C:/path/to/x-analytics/scripts/mcp.ts"
+      ]
+    }
+  }
+}
+```
+
+Replace `C:/path/to/x-analytics` with your project folder (forward slashes work on Windows; on macOS use the output of `which node` as the command). The server reads `data/analytics.db` fresh on every call, so it always sees the latest sync; the dashboard does not need to be running. The X keys stay in `.env` and are only used by `run_sync`. Post data that Claude reads becomes part of the conversation like any pasted text.
 
 ## Secrets
 
@@ -218,7 +253,7 @@ src/lib/db.ts         SQLite schema and migrations
 src/app/              dashboard pages and API routes
 src/components/       UI components and charts
 scripts/              sync, weekly, classify, audit, import, self-test
-data/                 analytics.db (not committed), initial tags
-reports/              weekly reports as Markdown
+data/                 analytics.db and backups (not committed)
+reports/              weekly reports as Markdown (generated locally, not committed)
 x_collect.py          the original Python collector (kept, still works, no longer needed)
 ```
