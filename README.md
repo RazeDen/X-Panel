@@ -183,6 +183,25 @@ They run hidden (no window pops up), skip a run while the previous one is still 
 
 API cost: X bills about $0.001 per own post read and $0.01 per profile lookup, and re-reading the same resource within one UTC day is not billed again. So the 15-minute schedule costs about the same as one sync a day: roughly $0.15 per day (about $4.50 a month) for a ~120-post window. Check the actual price in the X developer console.
 
+## Running on a server (24/7)
+
+The dashboard, the sync timers and the MCP server can live on a small Linux VPS so the first-hour capture never misses a post while your PC sleeps. `deploy/` holds everything for Ubuntu with systemd:
+
+| Unit | What it does |
+|---|---|
+| `x-panel-web.service` | `next start` on `127.0.0.1:3000` as the `xpanel` user, restarted on failure and on boot. Not reachable from the internet |
+| `x-panel-auto-sync.timer` | Every 5 minutes runs `scripts/auto-sync.ts` (calls X only when a post is 1h / 6h / 24h old or 15 minutes have passed) |
+| `x-panel-daily-sync.timer` | Daily 45-day sync at 08:00 Europe/Warsaw |
+| `x-panel-backup.timer` | Daily `scripts/backup-db.ts` at 03:30 (SQLite online backup, newest 14 kept in `data/backups/`) |
+
+Setup outline (Ubuntu 24.04): install Node 22 LTS, create a system user `xpanel` with home `/opt/x-panel`, put the repository in `/opt/x-panel/app`, copy `.env` (mode 600) and `data/analytics.db`, run `npm ci && npm run build` as `xpanel`, copy the units to `/etc/systemd/system/` and `systemctl enable --now` them. Logs: `journalctl -u x-panel-auto-sync -u x-panel-web`.
+
+**Access:** install Tailscale on the server and your PC (same account) and run `tailscale serve --bg --http 80 http://127.0.0.1:3000` on the server. The dashboard is then at `http://<machine-name>` (MagicDNS) from your devices only; nothing is opened on the public IP.
+
+**Updating:** after changing the code on the server, `sh /opt/x-panel/app/deploy/update.sh` (as root) fixes ownership, reinstalls dependencies when the lockfile changed, typechecks, builds and restarts the dashboard.
+
+**MCP from Claude Desktop:** quit Claude Desktop and run `npm run mcp:install -- --ssh root@<server>` on the PC. Claude Desktop then starts `scripts/mcp-remote.sh` on the server over SSH (key login required), which runs the MCP server as `xpanel` against the server's database.
+
 ## Claude Desktop (MCP)
 
 The Claude Desktop chat can read this dashboard's data through a local MCP server (stdio: no web server, no open port, nothing reachable from the internet). Ask things like "how did last week go?" or "which format works best over 90 days?" and Claude calls the tools below.

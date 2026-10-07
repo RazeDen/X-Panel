@@ -1,0 +1,9 @@
+[Unit]
+Description=Run X-Panel auto sync every 5 minutes
+
+[Timer]
+OnCalendar=*:0/5
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

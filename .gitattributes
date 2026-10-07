@@ -5,3 +5,4 @@
 *.tgz binary
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
+*.sh text eol=lf

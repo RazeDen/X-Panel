@@ -1,0 +1,20 @@
+[Unit]
+Description=X-Panel dashboard (Next.js, localhost only; reached through tailscale serve)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=xpanel
+Group=xpanel
+WorkingDirectory=/opt/x-panel/app
+Environment=NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOME=/opt/x-panel
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

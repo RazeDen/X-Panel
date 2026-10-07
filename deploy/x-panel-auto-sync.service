@@ -1,0 +1,16 @@
+[Unit]
+Description=X-Panel auto sync (calls X only when a post is 1h/6h/24h old or 15 min passed)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=xpanel
+Group=xpanel
+WorkingDirectory=/opt/x-panel/app
+Environment=HOME=/opt/x-panel
+ExecStart=/usr/bin/node node_modules/tsx/dist/cli.mjs scripts/auto-sync.ts
+TimeoutStartSec=10min
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true

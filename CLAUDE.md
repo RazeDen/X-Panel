@@ -16,7 +16,8 @@ The owner talks to Claude in Ukrainian. Code, comments and commit messages stay 
 | `npm run sync:full` | Whole timeline (X serves up to ~3,200 most recent posts) |
 | `npm run sync:auto` | Run every 5 min by the scheduler: syncs the last 2 days only when a post is exactly 1h / 6h / 24h old (+/- 2.5 min) or 15 min passed since the last sync |
 | `npm run sync:fresh` | Sync posts from the last 2 days, now |
-| `npm run schedule:install` / `schedule:remove` | Register / remove the Task Scheduler jobs (5-min auto sync, daily 08:00 sync; log in data/sync.log) |
+| `npm run schedule:install` / `schedule:remove` | Windows only: register / remove Task Scheduler jobs. Not used any more - the server uses systemd timers from `deploy/` |
+| `npm run backup` | Online SQLite backup to `data/backups/analytics-YYYY-MM-DD.db`, keeps 14 (run daily by `x-panel-backup.timer`) |
 | `npm run classify` | Re-apply the automatic format (series) and media type; manual formats are kept |
 | `npm run audit:x` | Live capability check (profile + 5 posts) and stored capability report |
 | `npm run db:migrate` | Apply schema migrations (every command also does this on open) |
@@ -36,6 +37,16 @@ Run `npm run typecheck && npm test` after any change to `src/lib` or `scripts`.
 - **Wording.** Say "low distribution relative to baseline". Never claim "X suppressed this post" or explain why the algorithm did something.
 - **Private metrics expire.** `non_public_metrics`, `organic_metrics` and video quartiles exist only for posts under ~30 days old. API errors for older posts and for retweets on those fields are expected and non-fatal.
 - **Not offered by the API at all:** watch time, followers gained per post, media engagements / detail expands. `link_clicks` exists only for posts with a clickable link or card.
+
+## Production server (since 2026-10-07)
+
+The live installation runs on the owner's Ubuntu 24.04 VPS (`root@<server-ip>`, Tailscale name `x-panel`); the PC copy is for reference/dev only and its database is no longer synced.
+- Code: `/opt/x-panel/app` (git checkout, owned by system user `xpanel`, home `/opt/x-panel`). `.env` there is mode 600.
+- Services (`deploy/`): `x-panel-web.service` (next start on 127.0.0.1:3000), `x-panel-auto-sync.timer` (5 min), `x-panel-daily-sync.timer` (08:00 Europe/Warsaw), `x-panel-backup.timer` (03:30, 14 dated copies). Logs: `journalctl -u x-panel-*`.
+- Access: `tailscale serve --http 80` -> `http://x-panel` from the owner's tailnet only. Never open port 3000 or the dashboard on the public IP: it has no login and a paid Sync button.
+- After code changes on the server: `sh /opt/x-panel/app/deploy/update.sh` (as root). Run commands as `xpanel` (`runuser -u xpanel -- env HOME=/opt/x-panel ...`), never leave root-owned files in the app.
+- Claude Desktop MCP runs over SSH: `npm run mcp:install -- --ssh root@<server-ip>` (PC, Claude Desktop closed) -> `scripts/mcp-remote.sh` on the server. The entry sets `ProgramData` because Windows OpenSSH exits silently without it.
+- The Windows Task Scheduler jobs were removed on 2026-10-07 (sync runs only on the server now).
 
 ## MCP server (Claude Desktop)
 
@@ -86,12 +97,14 @@ src/lib/classify/       taxonomy (Content dimensions), rules (series, bait, medi
 src/app/                dashboard pages + API routes (api/sync, api/posts/[id])
 scripts/                CLI entry points and selftest
 data/analytics.db       the database (gitignored); data/backups/ also gitignored
-scripts/schedule-sync.ps1, scheduled-sync.cmd   Task Scheduler jobs (npm run schedule:install)
+deploy/                 systemd units for the server + update.sh (rebuild and restart after code changes)
+scripts/mcp-remote.sh   MCP entry point used by Claude Desktop over SSH
+scripts/schedule-sync.ps1, scheduled-sync.cmd   old Windows Task Scheduler jobs (no longer installed)
 ```
 
 Windows notes: npm 11+ blocks install scripts unless allowed; `package.json` `allowScripts` approves `better-sqlite3` and `esbuild`. The DB uses `journal_mode = DELETE`, so a transient `analytics.db-journal` during writes is normal.
 
 ## Known caveats and open items
 
-- Scheduled sync is installed on the owner's PC: "X-Panel auto sync" every 5 min (`sync:auto`) since 2026-10-07, "X-Panel daily sync" 08:00. Early-growth data exists only for posts published after that.
+- Scheduled sync runs on the production server (systemd timers, see "Production server"); the Windows Task Scheduler jobs on the PC were removed on 2026-10-07. Early-growth data exists only for posts published after automatic syncing started (2026-10-06/07).
 - Legacy files `x_collect.py`, `posts_2026-10-05.csv` / `.json` and `account_history.csv` are kept for reference only; do not build on them.

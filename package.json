@@ -15,6 +15,7 @@
     "sync:full": "tsx scripts/sync.ts --full",
     "sync:fresh": "tsx scripts/sync.ts --days=2",
     "sync:auto": "tsx scripts/auto-sync.ts",
+    "backup": "tsx scripts/backup-db.ts",
     "schedule:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/schedule-sync.ps1",
     "schedule:remove": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/schedule-sync.ps1 -Remove",
     "import:legacy": "tsx scripts/import-legacy.ts",

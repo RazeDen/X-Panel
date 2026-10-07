@@ -1,0 +1,9 @@
+[Unit]
+Description=Back up the X-Panel database daily at 03:30
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Europe/Warsaw
+Persistent=true
+
+[Install]
+WantedBy=timers.target
