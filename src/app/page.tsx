@@ -9,7 +9,7 @@ import { pctChange } from "@/lib/stats";
 import { addDays, DOW_NAMES, today, weekOfDate, prevWeek, formatDateTime } from "@/lib/time";
 import { fmtCompact, fmtDelta, fmtInt, fmtRate } from "@/lib/format";
 import { slim } from "@/lib/slim";
-import { Card, Delta, EmptyDatabase, N, Notice, PageHeader, StatCard } from "@/components/ui";
+import { Card, Delta, EmptyDatabase, N, PageHeader, StatCard } from "@/components/ui";
 import { BarsChart, LinesChart } from "@/components/charts";
 import { FilterBar } from "@/components/filters";
 import { PostCard } from "@/components/PostCard";
@@ -77,7 +77,6 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     const ps = w.days ? ds.originals.filter((p) => inWindow(p, addDays(end, -((w.days as number) - 1)), end)) : ds.originals;
     return { label: w.label, s: summarize(ps) };
   });
-  const maturing = posts.filter((p) => p.maturing).length;
 
   // Latest-post card: the last 10 original posts, paged with ?lp=0..9 (0 = newest).
   const recentIds = [...ds.originals].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 10).map((p) => p.id);
@@ -87,18 +86,32 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const hrefFor = (i: number) => { const q = new URLSearchParams(keep); if (i) q.set("lp", String(i)); const s = q.toString(); return s ? `/?${s}` : "/"; };
 
   // The owner's two main series against everything else, in the selected range.
+  // Bait (closing "save this" / "bookmark this") vs the rest, in the selected range.
+  // When the selected range has fewer than 3 posts in either group (e.g. every post of the week has
+  // bait), widen it step by step so the card always compares something, and say so.
+  const RANGE_ORDER = ["7d", "30d", "90d", "all"] as const;
+  const baitCandidates = [
+    { range: f.range, label: win.label, posts },
+    ...RANGE_ORDER.slice(RANGE_ORDER.indexOf(f.range) + 1).map((r) => {
+      const rf = parseFilters({ range: r });
+      return { range: rf.range, label: dateWindow(rf, now).label, posts: applyFilters(ds.originals, rf, now) };
+    }),
+  ];
+  const baitWin = baitCandidates.find((c) => c.posts.filter((p) => p.bait).length >= 3 && c.posts.filter((p) => !p.bait).length >= 3) ?? baitCandidates[baitCandidates.length - 1];
+  const baitWidened = baitWin !== baitCandidates[0];
+  const bait = summarize(baitWin.posts.filter((p) => p.bait));
+  const noBait = summarize(baitWin.posts.filter((p) => !p.bait));
   const seriesRows = groupPosts(posts, (p) => p.series, [...SERIES]).filter((r) => SERIES.includes(r.key as (typeof SERIES)[number]));
 
   return (
     <>
       <PageHeader title="Overview" subtitle={<>Original posts by @{ds.account.username}. Replies, reposts and articles are stored but excluded from every number here. {ds.lastSync && <>Last synced {formatDateTime(ds.lastSync)}.</>}</>} />
       <FilterBar show={["range"]} defaultRange="7d" windowLabel={win.label} count={`${win.label} · ${posts.length} posts`} />
-      {maturing > 0 && <div className="mb-4"><Notice tone="warn">{maturing} post{maturing > 1 ? "s" : ""} in this range {maturing > 1 ? "were" : "was"} published less than 48h before the last sync. Their numbers are still growing, so period comparisons understate them.</Notice></div>}
 
       <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
         {card ? <LatestPostCard card={card} hrefFor={hrefFor} /> : <div />}
-        <div className="min-w-0 space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <div className="flex min-w-0 flex-col gap-4">
+      <div className="grid flex-auto auto-rows-fr grid-cols-2 gap-3 md:grid-cols-3">
         <StatCard label="Posts" value={fmtInt(cur.n)} delta={prev ? pctChange(cur.n, prev.n) : undefined} deltaLabel={vs} />
         <StatCard label="Total impressions" value={fmtCompact(cur.totalImpressions)} delta={prev ? ch(cur.totalImpressions, prev.totalImpressions) : undefined} deltaLabel={vs} hint={fmtInt(cur.totalImpressions)} />
         <StatCard label="Median impr. / post" value={fmtCompact(cur.medianImpressions)} delta={prev ? ch(cur.medianImpressions, prev.medianImpressions) : undefined} deltaLabel={vs} hint="The middle post. Not distorted by one viral post." />
@@ -106,10 +119,10 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         <StatCard label="Engagement rate" value={fmtRate(cur.medianEngagementRate)} delta={prev ? ch(cur.medianEngagementRate, prev.medianEngagementRate) : undefined} deltaLabel={vs} sub={`median per post · pooled ${fmtRate(cur.pooledEngagementRate)}`} hint="(likes + replies + reposts + quotes + bookmarks) / impressions" />
         <StatCard label="Total engagements" value={fmtCompact(cur.totalEngagements)} delta={prev ? ch(cur.totalEngagements, prev.totalEngagements) : undefined} deltaLabel={vs} sub={`${fmtInt(cur.totalLikes)} likes · ${fmtInt(cur.totalBookmarks)} bookmarks`} />
       </div>
-          <Card title="Your series" subtitle={`${win.label}. Medians per post; open a row to see its posts.`} pad={false}>
-            <table className="w-full">
+          <Card className="flex-auto" fill title="Your formats" subtitle={`${win.label}. Medians per post; open a row to see its posts.`} pad={false}>
+            <table className="h-full w-full">
               <thead className="border-b border-line"><tr>
-                <th className="th">Series</th><th className="th text-right">Posts</th><th className="th text-right">Median impr.</th>
+                <th className="th">Format</th><th className="th text-right">Posts</th><th className="th text-right">Median impr.</th>
                 <th className="th text-right">vs all posts</th><th className="th text-right">Median ER</th><th className="th text-right">Median dist. score</th>
               </tr></thead>
               <tbody>
@@ -134,8 +147,27 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         <Card title="Impressions over time" subtitle={`Impressions to date earned by posts published each ${unit}. Click a bar to see those posts.`}>
           <BarsChart format="compact" series={[{ key: "impressions", label: "Impressions" }]} data={points.map((p) => ({ label: p.label, impressions: p.impressions, href: p.posts ? p.href : undefined, note: p.note }))} />
         </Card>
-        <Card title="Posts published" subtitle={`Original posts per ${unit}.`}>
-          <BarsChart format="int" series={[{ key: "posts", label: "Posts" }]} data={points.map((p) => ({ label: p.label, posts: p.posts, href: p.posts ? p.href : undefined }))} />
+        <Card title="Bait vs no bait" subtitle={`${baitWin.label}${baitWidened ? ` (widened: ${win.label.toLowerCase()} has fewer than 3 posts ${posts.filter((p) => !p.bait).length < 3 ? "without" : "with"} bait)` : ""}. Posts ending with "save this" / "bookmark this" / "article below" against the rest; medians per post.`}
+          action={<Link className="link text-[12px]" href={`/content?dim=bait&range=${baitWin.range}`}>Details</Link>}>
+          <BarsChart format="rate" series={[{ key: "bait", label: `Bait (n=${bait.n})` }, { key: "noBait", label: `No bait (n=${noBait.n})` }]}
+            data={[
+              { label: "Engagement rate", bait: bait.medianEngagementRate, noBait: noBait.medianEngagementRate },
+              { label: "Bookmark rate", bait: bait.medianBookmarkRate, noBait: noBait.medianBookmarkRate },
+            ]} height={180} />
+          <div className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 text-[13px]">
+            {[{ label: "Engagement rate", a: bait.medianEngagementRate, b: noBait.medianEngagementRate }, { label: "Bookmark rate", a: bait.medianBookmarkRate, b: noBait.medianBookmarkRate }].map((m) => (
+              <div key={m.label}>
+                <div className="label">{m.label}, bait vs no bait</div>
+                <div className="num mt-1 flex items-baseline gap-2 text-ink">
+                  {fmtRate(m.a)} <span className="text-muted">vs</span> {fmtRate(m.b)}
+                  {m.a !== null && m.b ? <Delta value={m.a / m.b - 1} /> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-4 text-muted">
+            {bait.n < 3 || noBait.n < 3 ? "Fewer than 3 posts in a group - widen the range before reading anything into it. " : ""}A difference here is a correlation: bait and no-bait posts can also differ in topic, series and timing.
+          </p>
         </Card>
         <Card title="Engagement rate over time" subtitle={`Median per-post engagement rate, by publish ${unit}. Gaps are ${unit}s with no posts.`}>
           <LinesChart format="rate" series={[{ key: "er", label: "Median engagement rate" }]} data={points.map((p) => ({ label: p.label, er: p.engagementRate, note: p.note }))} />

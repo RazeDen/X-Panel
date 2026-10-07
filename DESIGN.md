@@ -36,7 +36,7 @@ The dashboard copies the look of the **X Developer Console** (console.x.com, dar
 | panel shadow | `inset 0 1px 0 #ffffff0e, 0 18px 44px -22px #000000e6` | `--console-panel-shadow` | Panels (`.panel`) |
 | canvas sheen | `linear-gradient(180deg, #ffffff09, #fff0 280px)` | `--console-canvas-sheen` | Top of the main scroll area |
 
-Sequential ramps (e.g. the Timing grid) use the X blue scale: `#00154a #003886 #005ac2 #006fd6 #0083eb #1d9bf0 #43b3f6 #6bc9fb`. Never hard-code other hex values in components.
+Sequential ramps use the X blue scale: `#00154a #003886 #005ac2 #006fd6 #0083eb #1d9bf0 #43b3f6 #6bc9fb`. Never hard-code other hex values in components.
 
 Fonts: **Inter** (`--font-inter`) for text and **Geist Mono** (`--font-geist-mono`) for IDs and code, loaded with `next/font/google` in `layout.tsx`. Tabular figures are on by default (`"tnum"`). Note: `next/font/google` downloads the fonts on first build/dev start, so that needs internet once.
 
@@ -82,9 +82,9 @@ Fonts: **Inter** (`--font-inter`) for text and **Geist Mono** (`--font-geist-mon
 | Sample size | `N` - always next to aggregates |
 | Charts | `BarsChart`, `LinesChart`, `QuadrantChart` (`src/components/charts.tsx`) |
 | Calendar heatmap | `Heatmap`: accent blue at 30 / 55 / 80 / 100% for levels 1-4, `bg-raised` for zero |
-| Latest post card | `LatestPostCard` (YouTube Studio "Latest video performance" pattern): 16:9 media preview with an 8px radius, bottom black gradient and the post's first line in white semibold, series chip top-left; counter row (eye / heart / bubble / bookmark icons, 16px); divider; muted age line ("First 5 hours"); label-value rows 13px with a verdict icon on the right; `.btn` "See post analytics"; footer pager `‹ 3 of 10 ›` with `.icon-btn`, separated by `border-t` |
-| Verdict icon | `StatusIcon`: 16px; within usual range = green outlined circle with a check, above = filled green circle with a black up arrow, below = filled red circle with a down arrow; always with a tooltip naming the comparison and n; an empty 16px spacer when there is no verdict so values stay aligned |
-| Media preview | Plain `<img>` from `media_preview` (X CDN), `object-cover`; when missing, a `hatch` block on `bg-sunken` of the same size |
+| Latest post card | `LatestPostCard` (YouTube Studio "Latest video performance" pattern): `PostPreview` 16:9; counter row (eye / heart / bubble / bookmark icons, 16px); divider; muted age line ("First 5 hours"); label-value rows 13px with a verdict icon on the right: Impressions, First hour, Engagement rate (vs posts of similar reach), Distribution score - no rank row, no bookmark rate (owner's choice); under "First hour" the first-hour meter in a `bg-sunken` box (10px track, grey `line-strong` band for the other posts' range, accent bar - red when below the median, 2px white median tick, caption with median and n); no button (the thumbnail opens the post); footer pager `‹ 3 of 10 ›`. Its height sets the row: the right column's stat-tile grid and the "Your series" card both grow (`flex-auto`; `Card fill` lets the table rows share the extra height) so both columns end level, and `StatCard` keeps the label on top and pushes value + change to the bottom (`mt-auto`) when stretched |
+| Verdict icon | `StatusIcon`: 16px; within usual range = green outlined circle with a check, above = filled green circle with a black up arrow, below = filled red circle with a down arrow; median verdicts (first hour / 6h / 24h) show from n = 1 with a muted `n=1` beside the icon when n < 3; always with a tooltip naming the comparison and n; an empty 16px spacer when there is no verdict so values stay aligned |
+| Post thumbnail | `PostPreview`: the one way to show a post visually - 16:9 `media_preview` image (X CDN, `object-cover`, lazy) or a `hatch` block on `bg-sunken` when missing, 8px radius, bottom black gradient with the first words in white semibold, series chip top-left, links to the post. Used by the latest-post card and the Overview highlight tiles (`PostCard`) |
 | Sync | `SyncButton variant="topbar"` in the top bar; full version (incremental + full re-sync) on Data & methods |
 | Logo | `Logo` (`src/components/Logo.tsx`), favicon `src/app/icon.svg` |
 

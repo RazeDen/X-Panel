@@ -68,16 +68,12 @@ export function groupPosts(posts: Post[], keyOf: (p: Post) => string | null | un
 
 export const dimensionValue = (p: Post, dim: string): string | null => {
   switch (dim) {
-    case "topic": return p.topic;
-    case "subtopic": return p.subtopic;
-    case "content_type": return p.content_type;
-    case "hook_type": return p.hook_type;
     case "format": return p.format;
     case "series": return p.series;
+    case "bait": return p.bait ? "Bait" : "No bait";
     case "bucket": return p.bucket;
     case "dow": return p.dowName;
     case "hour": return String(p.hour).padStart(2, "0") + ":00";
-    case "news": return p.is_news === null ? null : p.is_news ? "News-related" : "Not news";
     default: return null;
   }
 };

@@ -13,17 +13,18 @@ export const dynamic = "force-dynamic";
 export default async function PostsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ds = getDataset();
   if (ds.empty) return <EmptyDatabase />;
-  const f = parseFilters(await searchParams, { range: "all" });
+  // Only original posts are listed here (owner's choice); replies, reposts and articles stay reachable by URL.
+  const f = { ...parseFilters(await searchParams, { range: "all" }), kind: "original" as const };
   const win = dateWindow(f);
-  const rows = applyFilters(ds.posts, f);
+  const rows = applyFilters(ds.originals, f);
   const tags = tagValues(ds.originals);
   const s = summarize(rows.filter((p) => p.isOriginal));
   const early = getSnapshotPoints({ maxAgeHours: 2 });
   return (
     <>
-      <PageHeader title="Posts" subtitle="Every stored post. Filter, sort by any metric, and open a post for its full analytics." />
-      <FilterBar show={["range", "kind", "series", "topic", "format", "ctype", "hook", "min", "q"]} defaultRange="all" windowLabel={win.label}
-        options={{ series: tags.series, topic: tags.topic, format: tags.format, ctype: tags.content_type, hook: tags.hook_type }}
+      <PageHeader title="Posts" subtitle="Every original post. Filter, sort by any metric, and open a post for its full analytics." />
+      <FilterBar show={["range", "series", "min", "q"]} defaultRange="all" windowLabel={win.label}
+        options={{ series: tags.series }}
         count={`${rows.length} posts · median ${fmtCompact(s.medianImpressions)} impr. · median ER ${fmtRate(s.medianEngagementRate)}`} />
       <Card pad={false}>
         <PostsTable posts={rows.map((p) => {

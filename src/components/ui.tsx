@@ -23,11 +23,13 @@ export function PageHeader({ title, subtitle, children, tabs }: { title: string;
 }
 
 /** Card: title and a short muted description on one line ("Usage  Billable events, ..."), action on the right. */
-export function Card({ title, subtitle, action, children, className = "", pad = true }: {
+export function Card({ title, subtitle, action, children, className = "", pad = true, fill = false }: {
   title?: ReactNode; subtitle?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; pad?: boolean;
+  /** Let the body grow when the card is stretched (e.g. a table whose rows should share the extra height). */
+  fill?: boolean;
 }) {
   return (
-    <section className={`card ${className}`}>
+    <section className={`card ${fill ? "flex flex-col" : ""} ${className}`}>
       {(title || action) && (
         <header className="flex items-start justify-between gap-3 px-5 pt-5">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
@@ -37,7 +39,7 @@ export function Card({ title, subtitle, action, children, className = "", pad = 
           {action}
         </header>
       )}
-      <div className={pad ? (title || action ? "p-5 pt-4" : "p-5") : title || action ? "pt-4" : ""}>{children}</div>
+      <div className={`${pad ? (title || action ? "p-5 pt-4" : "p-5") : title || action ? "pt-4" : ""} ${fill ? "flex-1" : ""}`}>{children}</div>
     </section>
   );
 }
@@ -66,15 +68,18 @@ export function StatCard({ label, value, delta, deltaLabel, sub, hint }: {
 }) {
   const empty = value === "—" || value === "0";
   return (
-    <div className="card card-pad" title={hint}>
+    <div className="card card-pad flex h-full flex-col" title={hint}>
       <div className="label">{label}</div>
-      <div className={`num mt-1.5 text-[26px] font-semibold leading-8 tracking-tight ${empty ? "text-muted" : "text-ink"}`}>{value}</div>
-      {(delta !== undefined || sub) && (
-        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px] leading-4 text-muted">
-          {delta !== undefined && <Delta value={delta} suffix={deltaLabel} />}
-          {sub && <span>{sub}</span>}
-        </div>
-      )}
+      {/* Value and context sit at the bottom, so a tile stretched to fill a row still reads as one block. */}
+      <div className="mt-auto pt-1.5">
+        <div className={`num text-[26px] font-semibold leading-8 tracking-tight ${empty ? "text-muted" : "text-ink"}`}>{value}</div>
+        {(delta !== undefined || sub) && (
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px] leading-4 text-muted">
+            {delta !== undefined && <Delta value={delta} suffix={deltaLabel} />}
+            {sub && <span>{sub}</span>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

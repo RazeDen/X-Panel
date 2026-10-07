@@ -10,7 +10,6 @@ const ICONS: Record<string, ReactNode> = {
   "/activity": <><rect x="3" y="5" width="18" height="16" rx="2.5" /><path d="M3 10h18M8 3v4M16 3v4M7.5 14h2M11 14h2M14.5 14h2M7.5 17.5h2M11 17.5h2" /></>,
   "/posts": <><rect x="3.5" y="3.5" width="17" height="17" rx="3" /><path d="M8 9h8M8 12.5h8M8 16h5" /></>,
   "/content": <path d="M12 3 2.5 8 12 13l9.5-5zM2.5 12.5 12 17.5l9.5-5M2.5 16.5 12 21.5l9.5-5" />,
-  "/timing": <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
   "/patterns": <path d="M5 20V11M11 20V4M17 20v-7M22 20H2" />,
   "/outliers": <path d="m3 17 6-6 4 4 8-8M15 7h6v6" />,
   "/data": <><ellipse cx="12" cy="5.5" rx="8" ry="3" /><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" /></>,
@@ -18,7 +17,7 @@ const ICONS: Record<string, ReactNode> = {
 
 const GROUPS: { label: string | null; items: { href: string; label: string }[] }[] = [
   { label: null, items: [{ href: "/", label: "Overview" }, { href: "/activity", label: "Activity" }, { href: "/posts", label: "Posts" }] },
-  { label: "Analysis", items: [{ href: "/content", label: "Content" }, { href: "/timing", label: "Timing" }, { href: "/patterns", label: "Patterns" }, { href: "/outliers", label: "Outliers" }] },
+  { label: "Analysis", items: [{ href: "/content", label: "Content" }, { href: "/patterns", label: "Patterns" }, { href: "/outliers", label: "Outliers" }] },
   { label: "System", items: [{ href: "/data", label: "Data & methods" }] },
 ];
 

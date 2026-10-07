@@ -48,9 +48,9 @@ async function main() {
   const { runSync } = await import("../src/lib/x/sync");
   const { XApiError } = await import("../src/lib/x/client");
   const { loadPosts, getDataset, toPost } = await import("../src/lib/data");
-  const { impressionsAtAge, statusOf, recentCard, ageLabel } = await import("../src/lib/analytics/growth");
-  const { saveClassification } = await import("../src/lib/classify/store");
-  const { classifyByRules, deriveFormat, deriveSeries } = await import("../src/lib/classify/rules");
+  const { impressionsAtAge, statusOf, medianVerdict, captureDue, recentCard, ageLabel, similarReach } = await import("../src/lib/analytics/growth");
+  const { saveSeries } = await import("../src/lib/classify/store");
+  const { deriveFormat, deriveSeries, hasBait } = await import("../src/lib/classify/rules");
   const { applyFilters, parseFilters } = await import("../src/lib/filters");
   const { dataWarnings } = await import("../src/lib/warnings");
 
@@ -80,11 +80,16 @@ async function main() {
   check("time buckets", bucketOfHour(0) === "00:00-06:00" && bucketOfHour(20) === "18:00-21:00" && bucketOfHour(23) === "21:00-00:00");
 
   console.log("Classification");
-  const c = classifyByRules("ANTHROPIC ENGINEER LEAKED A FILE WHERE OPUS 5.5 BUILDS AN ANIMATION\n\nmore text");
   check("series rules", deriveSeries("ANTHROPIC DESIGNER LEAKED A 6-RULE FILE THAT TURNS OPUS 5.5 INTO AN ART DIRECTOR", ["video"]) === "Animated file"
     && deriveSeries("CLAUDE ANIMATED JEV SORTING 3,412 LEADS IN 15.7 SECONDS - 1,440 FRAMES, 1 HTML FILE", ["video"]) === "Animated scene"
     && deriveSeries("ANTHROPIC ENGINEER LEAKED A FILE WHERE OPUS 5.5 BUILDS A 20-SECOND ANIMATION", ["photo"]) === "Other");
-  check("rule classifier tags topic and hook", c.topic === "Claude" && c.hook_type === "Leak", JSON.stringify(c));
+  const lines = (...l: string[]) => l.join("\n");
+  check("bait = save/bookmark call in the last 3 lines",
+    hasBait(lines("headline", "", "body", "save this and paste it into Claude Code"))
+    && hasBait(lines("a", "bookmark this before someone else", "last line"))
+    && !hasBait(lines("save this early line", "2", "3", "4", "5"))
+    && hasBait(lines("x", "check the article below, it is the full 10-step studio"))
+    && !hasBait(lines("every list you have saved", "end")));
   check("format rules", deriveFormat({ article: false, isThreadRoot: false, mediaTypes: ["video"], hasLink: false }) === "Video" && deriveFormat({ article: true, isThreadRoot: false, mediaTypes: [], hasLink: false }) === "Article" && deriveFormat({ article: false, isThreadRoot: false, mediaTypes: [], hasLink: false }) === "Text");
 
   console.log("Empty database");
@@ -145,7 +150,7 @@ async function main() {
   check("private + video metrics mapped", p101.profile_visits === 4 && p101.link_clicks === null && p101.video_views === 400 && p101.video_completion_rate === 0.1 && p101.format === "Video");
   check("reply is stored but not an original", (db.prepare("SELECT kind FROM posts WHERE x_id='104'").get() as { kind: string }).kind === "reply");
 
-  saveClassification(p101.id as number, { topic: "My Topic", hook_type: "My Hook" }, "manual");
+  saveSeries(p101.id as number, "Animated scene");
   phase = 2;
   await new Promise((r) => setTimeout(r, 15));
   const second = await withServer(handler, () => runSync({ maxRetries: 0 }));
@@ -153,9 +158,10 @@ async function main() {
   check("no duplicate posts", (db.prepare("SELECT COUNT(*) AS n FROM (SELECT x_id FROM posts GROUP BY x_id HAVING COUNT(*) > 1)").get() as { n: number }).n === 0);
   const snaps = db.prepare("SELECT impressions FROM metric_snapshots WHERE post_id = ? ORDER BY captured_at").all(p101.id) as { impressions: number }[];
   check("history keeps both readings", snaps.length === 2 && snaps[0].impressions === 1000 && snaps[1].impressions === 1500);
-  const again = db.prepare("SELECT impressions, topic, hook_type, class_source FROM posts WHERE x_id='101'").get() as { impressions: number; topic: string; hook_type: string; class_source: string };
+  const again = db.prepare("SELECT impressions, series, series_source, topic, hook_type, content_type FROM posts WHERE x_id='101'").get() as { impressions: number; series: string; series_source: string; topic: string | null; hook_type: string | null; content_type: string | null };
   check("latest metrics updated", again.impressions === 1500);
-  check("manual tags survive a sync", again.topic === "My Topic" && again.hook_type === "My Hook" && again.class_source === "manual");
+  check("manual format survives a sync", again.series === "Animated scene" && again.series_source === "manual");
+  check("topic / type / hook are not derived any more", again.topic === null && again.hook_type === null && again.content_type === null);
   check("account snapshot per sync", (db.prepare("SELECT COUNT(*) AS n FROM account_snapshots").get() as { n: number }).n === 2);
 
   console.log("Posts that disappear from the API");
@@ -170,12 +176,12 @@ async function main() {
   const art = toPost({ ...row, article_title: "Long read" });
   check("articles are not counted as posts", art.isArticle && !art.isOriginal && toPost(row).isOriginal && applyFilters([art], parseFilters({ kind: "article", range: "all" })).length === 1);
   check("filters: minimum impressions", applyFilters(posts, parseFilters({ min: "1000", range: "all" })).length === 1);
-  check("filters: topic", applyFilters(posts, parseFilters({ topic: "My Topic", range: "all" })).length === 1);
+  check("filters: format", applyFilters(posts, parseFilters({ series: "Animated scene", range: "all" })).length === 1);
   check("filters: text search", applyFilters(posts, parseFilters({ q: "post 102", range: "all" })).length === 1);
   check("too little history -> no scores invented", originals.every((p) => p.score === null));
   check("rank by impressions (1 = most)", originals.find((p) => p.x_id === "101")?.rank === 1 && originals.every((p) => p.impressions === null ? p.rank === null : p.rank! >= 1));
   check("series is set on every original", originals.every((p) => !!p.series));
-  saveClassification(p101.id as number, { series: "Animated file" }, "manual");
+  saveSeries(p101.id as number, "Animated file");
   (await import("../src/lib/x/sync")).postProcess();
   check("manual series survives re-classification", (db.prepare("SELECT series, series_source FROM posts WHERE x_id='101'").get() as { series: string; series_source: string }).series_source === "manual");
 
@@ -189,6 +195,14 @@ async function main() {
   check("status needs 3 comparison posts", statusOf(10, [1, 2]) === null && statusOf(10, [1, 2, 3])?.status === "above" && statusOf(2, [1, 2, 3])?.status === "typical");
   const card = recentCard(originals, new Map(), 0);
   check("latest-post card falls back to total-impressions rank without early data", !!card && (card.rank === null || card.rank.sameAge === false) && card.firstHour.value === null);
+  check("first hour vs median: arrow from n=1, n carried", medianVerdict(300, [250])?.status === "above" && medianVerdict(300, [250])?.n === 1 && medianVerdict(100, [250, 400])?.status === "below" && medianVerdict(5, []) === null);
+  const due = (ageMin: number, snapAges: number[]) => captureDue([{ id: 1, created_at: t0 }], new Map([[1, snapAges.map((m) => at(m, 10))]]), Date.parse(t0) + ageMin * 60000);
+  check("exact capture at 1h / 6h / 24h only", due(61, [])?.minutes === 60 && due(359, [])?.minutes === 360 && due(30, []) === null && due(64, []) === null);
+  check("no capture when a snapshot near the mark exists", due(61, [59]) === null);
+  const fake = (id: number, impressions: number, er: number) => ({ id, impressions, engagement_rate: er }) as unknown as import("../src/lib/analytics/types").Post;
+  const pool = [fake(1, 500, 0.05), fake(2, 1000, 0.03), fake(3, 1200, 0.025), fake(4, 10000, 0.01), fake(5, 900, 0.03)];
+  const peers = similarReach(fake(9, 1100, 0.02), pool, 3).map((p) => p.id).sort();
+  check("ER compared with posts of similar reach (log scale)", JSON.stringify(peers) === "[2,3,5]");
   check("age label", ageLabel(9 * 24 + 1.5) === "First 9 days 1 hour" && ageLabel(0.5) === "First 30 min");
   check("capability report built", (db.prepare("SELECT status FROM capabilities WHERE key='impressions'").get() as { status: string } | undefined)?.status === "partial");
 
@@ -217,9 +231,10 @@ async function main() {
   check("MCP weekly report tool is gone", !tools.includes("get_weekly_report"));
   const recent = await body("get_recent_performance", { count: 3 });
   check("MCP recent performance cards", Array.isArray(recent) && recent.length === 3 && "firstHour" in recent[0] && "rank" in recent[0]);
+  check("MCP breakdown by bait", (await body("get_breakdown", { dimension: "bait", range: "all" })).groups.every((g: { key: string }) => g.key === "Bait" || g.key === "No bait"));
   check("MCP breakdown by series", (await body("get_breakdown", { dimension: "series", range: "all" })).groups.some((g: { key: string }) => g.key === "Animated file"));
   check("MCP get_post has early performance and rank", Array.isArray(one.earlyPerformance) && one.rankByImpressions === 1);
-  check("MCP breakdown carries sample size", (await body("get_breakdown", { dimension: "topic", range: "all" })).groups.every((g: { n: number; lowSample: boolean }) => typeof g.n === "number" && typeof g.lowSample === "boolean"));
+  check("MCP breakdown carries sample size", (await body("get_breakdown", { dimension: "series", range: "all" })).groups.every((g: { n: number; lowSample: boolean }) => typeof g.n === "number" && typeof g.lowSample === "boolean"));
   check("MCP data status", (await body("get_data_status")).storedPosts === posts.length);
   const synced = await body("run_sync", {});
   check("MCP run_sync uses the sync pipeline", synced.ok === true && synced.newPosts === 1 && syncCalls === 1);

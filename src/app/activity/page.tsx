@@ -39,7 +39,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
         <StatCard label="Active days" value={fmtInt(a.activeDays)} sub={`${pct(a.activeDays, a.periodDays)} of days`} hint="Days with at least one original post." />
         <StatCard label="Current streak" value={`${cur.days} ${cur.days === 1 ? "day" : "days"}`} sub={cur.days ? (cur.postedToday ? "including today" : "nothing posted today yet") : "post today to start one"} hint="Consecutive days with at least one post, ending today. Independent of the selected period." />
         <StatCard label="Longest streak" value={`${a.longest.days} ${a.longest.days === 1 ? "day" : "days"}`} sub={streakRange(a.longest)} />
-        <StatCard label="Peak hour" value={a.peakHour ? `${String(a.peakHour.hour).padStart(2, "0")}:00` : "—"} sub={a.peakHour ? `${hourLabel(a.peakHour.hour)} · ${a.peakHour.n} of ${a.posts} posts${a.peakHour.n === 1 ? " · n=1" : ""}` : undefined} hint="The hour of day you publish most often. Says nothing about reach - see Timing for that." />
+        <StatCard label="Peak hour" value={a.peakHour ? `${String(a.peakHour.hour).padStart(2, "0")}:00` : "—"} sub={a.peakHour ? `${hourLabel(a.peakHour.hour)} · ${a.peakHour.n} of ${a.posts} posts${a.peakHour.n === 1 ? " · n=1" : ""}` : undefined} hint="The hour of day you publish most often. Says nothing about reach." />
         <StatCard label="Top format" value={a.topFormat?.format ?? "—"} sub={a.topFormat ? `${a.topFormat.n} of ${a.posts} posts` : undefined} />
       </div>
 

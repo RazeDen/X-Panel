@@ -19,10 +19,8 @@ function OutlierCard({ p, all }: { p: Post; all: Post[] }) {
   const overall = median(all.map((x) => x.impressions));
   // How this post's tags perform across the whole history, compared with the overall median.
   const dims: { label: string; value: string | null; group: Post[] }[] = [
-    { label: "Topic", value: p.topic, group: all.filter((x) => x.topic === p.topic) },
-    { label: "Format", value: p.format, group: all.filter((x) => x.format === p.format) },
-    { label: "Hook", value: p.hook_type, group: all.filter((x) => x.hook_type === p.hook_type) },
-    { label: "Type", value: p.content_type, group: all.filter((x) => x.content_type === p.content_type) },
+    { label: "Format", value: p.series, group: all.filter((x) => x.series === p.series) },
+    { label: "Bait", value: p.bait ? "Bait" : "No bait", group: all.filter((x) => x.bait === p.bait) },
     { label: "Slot", value: p.bucket, group: all.filter((x) => x.bucket === p.bucket) },
   ];
   const up = s.outlier !== "below";
@@ -33,8 +31,8 @@ function OutlierCard({ p, all }: { p: Post; all: Post[] }) {
           <Link href={`/posts/${p.id}`} className="line-clamp-2 text-[13px] font-medium leading-5 text-ink hover:underline">{preview(p.article_title || p.text, 150)}</Link>
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">
             <span>{shortDate(p.localDate)} {p.localTime}</span>
-            {[p.topic, p.format, p.hook_type, p.content_type].filter(Boolean).map((t) => <Chip key={t}>{t}</Chip>)}
-            {p.maturing && <Chip tone="warn">&lt;48h old</Chip>}
+            {p.series && <Chip>{p.series}</Chip>}{p.bait && <Chip>bait</Chip>}
+            {p.maturing && <Chip tone="good">new</Chip>}
           </div>
         </div>
         <div className="num shrink-0 text-right">
@@ -49,7 +47,7 @@ function OutlierCard({ p, all }: { p: Post; all: Post[] }) {
         <div><span className="text-muted">Engagement quality</span><br />{s.quality === null ? "—" : `${Math.round(s.quality)} / 100`} <span className="text-muted">&middot; ER {fmtRate(p.engagement_rate)}</span></div>
       </div>
       <div className="mt-3 border-t border-line pt-3">
-        <div className="label mb-1.5">How this post&apos;s tags perform across your history</div>
+        <div className="label mb-1.5">How this post&apos;s format, bait and slot perform across your history</div>
         <div className="flex flex-wrap gap-1.5">
           {dims.filter((d) => d.value).map((d) => {
             const m = median(d.group.map((x) => x.impressions));
@@ -63,7 +61,7 @@ function OutlierCard({ p, all }: { p: Post; all: Post[] }) {
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
         <span className="text-ink2">{s.diagnosis}</span>
-        {p.topic && <Link className="link shrink-0" href={`/posts?topic=${encodeURIComponent(p.topic)}&format=${encodeURIComponent(p.format ?? "")}`}>Inspect similar posts</Link>}
+        {p.series && <Link className="link shrink-0" href={`/posts?series=${encodeURIComponent(p.series)}`}>Posts with the same format</Link>}
       </div>
     </div>
   );

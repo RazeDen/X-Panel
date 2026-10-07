@@ -19,7 +19,7 @@ import { XApiError } from "../x/client";
  * Keep the tool set in step with the dashboard: when a page or metric changes significantly,
  * update the matching tool here (see CLAUDE.md "MCP server").
  */
-export const MCP_VERSION = "2.0.0";
+export const MCP_VERSION = "3.0.0";
 
 const INSTRUCTIONS = `Personal X (Twitter) analytics for one account, read from the local dashboard database.
 Rules for interpreting the data:
@@ -28,9 +28,10 @@ Rules for interpreting the data:
 - null means the metric is unavailable from the X API (e.g. private metrics for posts older than ~30 days). It is never zero - do not treat it as 0.
 - Prefer medians over averages; always mention the sample size n. Groups with n < ${MIN_SAMPLE} are low sample - do not draw conclusions from them.
 - Posts under 48h old ("maturing") are still accumulating; comparisons understate them.
-- "series" is the owner's content line: "Animated file" (an animated post built around a file, config, prompt or rule set), "Animated scene" (an animation where something happens) or "Other". It is auto-detected from the headline and corrected by hand, so treat it as a label, not ground truth.
+- "series" is the owner's content line - the dashboard and the owner call it "Format" (when the owner says "format" they mean this, not the media type, which is almost always video): "Animated file" (an animated post built around a file, config, prompt or rule set), "Animated scene" (an animation where something happens) or "Other". It is auto-detected from the headline and corrected by hand, so treat it as a label, not ground truth.
 - Early numbers (impressions at 1h / 6h / 24h, same-age rank) exist only where a sync ran near that age; "estimated" values are interpolated between two nearby snapshots. Missing early numbers mean "not captured", not zero.
 - "rank" is the post's rank by impressions among all original posts (1 = most).
+- "bait" is true when one of the post's last 3 lines asks to save or bookmark it ("save this ...", "bookmark this ...") or points to the article ("check the article below", "more in article below"). Compare bait vs no-bait with get_breakdown dimension "bait"; differences are correlations, since bait posts can also differ in topic, series and timing.
 - Describe reach as "low/high distribution relative to baseline". Never claim X suppressed or boosted a post, and do not invent reasons for the algorithm's behaviour. Correlation is not causation.
 - Dates and hours are in Europe/Warsaw time; weeks are ISO weeks (2026-W40).
 - run_sync calls the paid X API (about $0.13 per incremental run); only run it when the user asks for fresh data.`;
@@ -51,18 +52,15 @@ const filterShape = {
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Start date YYYY-MM-DD (Europe/Warsaw)"),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("End date YYYY-MM-DD (Europe/Warsaw)"),
   series: z.enum(SERIES).optional().describe("The owner's content line"),
-  topic: z.string().optional(),
-  format: z.string().optional().describe("Text, Image, Video, GIF, Thread, Link, Mixed media"),
-  content_type: z.string().optional(),
-  hook: z.string().optional().describe("Hook type of the first line"),
+  format: z.string().optional().describe("Media type (Video, Image, Text ...). Almost every post is a video; the owner's \"format\" is `series`."),
   min_impressions: z.number().int().positive().optional(),
   query: z.string().optional().describe("Case-insensitive text search in the post text"),
 };
-type FilterArgs = { range?: z.infer<typeof RANGE>; week?: string; from?: string; to?: string; series?: string; topic?: string; format?: string; content_type?: string; hook?: string; min_impressions?: number; query?: string; kind?: string };
+type FilterArgs = { range?: z.infer<typeof RANGE>; week?: string; from?: string; to?: string; series?: string; format?: string; min_impressions?: number; query?: string; kind?: string };
 
 function toFilters(a: FilterArgs, defaultRange: Filters["range"]): Filters {
   return parseFilters(
-    { range: a.range, week: a.week, from: a.from, to: a.to, series: a.series, topic: a.topic, format: a.format, ctype: a.content_type, hook: a.hook, min: a.min_impressions ? String(a.min_impressions) : undefined, q: a.query, kind: a.kind },
+    { range: a.range, week: a.week, from: a.from, to: a.to, series: a.series, format: a.format, min: a.min_impressions ? String(a.min_impressions) : undefined, q: a.query, kind: a.kind },
     { range: defaultRange }
   );
 }
@@ -88,7 +86,7 @@ function postRow(p: Post) {
   const s = slim(p, 160);
   return {
     id: s.id, url: s.url, kind: s.kind, date: `${s.localDate} ${s.localTime}`, day: s.dowName, text: s.preview,
-    series: s.series, rank: s.rank, topic: s.topic, format: s.format, hook: s.hook, contentType: s.ctype, tagSource: s.classSource,
+    series: s.series, bait: s.bait, rank: s.rank, media: s.format,
     impressions: s.impressions, likes: s.likes, replies: s.replies, reposts: s.reposts, quotes: s.quotes, bookmarks: s.bookmarks,
     profileVisits: s.profileVisits, engagementRate: s.engagementRate, bookmarkRate: s.bookmarkRate,
     distributionScore: s.distribution, qualityScore: s.quality, outlier: s.outlier, maturing: s.maturing,
@@ -206,7 +204,7 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
       published: `${p.localDate} ${p.localTime} (${p.dowName}, ${p.bucket})`, lastSynced: p.last_synced_at, maturing: p.maturing,
       articleTitle: p.article_title, text: p.text,
       rankByImpressions: p.rank, rankedPosts: d.originals.filter((q) => q.rank !== null).length,
-      tags: { series: p.series, seriesSource: p.series_source, topic: p.topic, subtopic: p.subtopic, contentType: p.content_type, hook: p.hook_type, isNews: p.is_news === null ? null : !!p.is_news, format: p.format, source: p.class_source },
+      tags: { format: p.series, formatSource: p.series_source, bait: p.bait, media: p.format },
       structure: { mediaTypes: p.mediaTypes, hasLink: !!p.has_link, threadRoot: !!p.is_thread_root, selfQuote: !!p.is_self_quote, videoDurationMs: p.video_duration_ms },
       metrics: {
         impressions: p.impressions, likes: p.likes, replies: p.replies, reposts: p.reposts, quotes: p.quotes, bookmarks: p.bookmarks,
@@ -232,9 +230,9 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
 
   server.registerTool("get_breakdown", {
     title: "Performance by group",
-    description: "Original posts grouped by a tag or by timing (dashboard Content and Timing pages): n, median and average impressions, median rates and median scores per group. Groups with lowSample=true have fewer than 3 posts.",
+    description: "Original posts grouped by format (series), bait or media type (dashboard Content page) or by posting time (time slot, weekday, hour - no longer a dashboard page, still available here): n, median and average impressions, median rates and median scores per group. Groups with lowSample=true have fewer than 3 posts.",
     inputSchema: {
-      dimension: z.enum(["series", "topic", "subtopic", "content_type", "hook_type", "format", "news", "bucket", "dow", "hour"]).describe("bucket = 3-hour time slot, dow = day of week, hour = hour of day"),
+      dimension: z.enum(["series", "bait", "format", "bucket", "dow", "hour"]).describe("series = the owner's format (Animated file / Animated scene / Other), bait = Bait / No bait, format = media type, bucket = 3-hour time slot, dow = day of week, hour = hour of day"),
       ...filterShape,
     },
     annotations: read,
@@ -247,7 +245,7 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
 
   server.registerTool("get_recent_performance", {
     title: "Recent post performance",
-    description: "YouTube-style card for each of the last N original posts (dashboard Overview \"Latest post performance\"): age, rank among the recent posts (at the same age when enough early snapshots exist, otherwise by total impressions - check sameAge), impressions after the first hour, and whether impressions, engagement rate and bookmark rate are above, within or below the usual range of the other recent posts (25th-75th percentile, n >= 3).",
+    description: "YouTube-style card for each of the last N original posts (dashboard Overview \"Latest post performance\"): age, rank among the recent posts (at the same age when enough early snapshots exist, otherwise by total impressions - check sameAge), impressions after the first hour (verdict: above / below the median of the other recent posts, from n = 1 - check n), whether impressions and bookmark rate are above, within or below the usual range of the other recent posts (25th-75th percentile, n >= 3), and whether the engagement rate is above or below the median of the 15 posts with the most similar impressions (engagement rate falls as reach grows, so it is only compared with posts of similar reach).",
     inputSchema: { count: z.number().int().min(1).max(30).default(10).describe("How many recent posts") },
     annotations: read,
   }, async ({ count }) => {
@@ -261,8 +259,8 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
       rank: c.rank ? { rank: c.rank.rank, of: c.rank.of, basis: c.rank.sameAge ? "same age" : "total impressions (different ages)" } : null,
       impressionsVerdict: verdict(c.impressions.status), impressionsBasis: c.impressions.basis,
       firstHour: c.firstHour.value ? { impressions: c.firstHour.value.value, estimated: c.firstHour.value.estimated } : "not captured",
-      firstHourVerdict: verdict(c.firstHour.status),
-      engagementRateVerdict: verdict(c.engagementRate.status), bookmarkRateVerdict: verdict(c.bookmarkRate.status),
+      firstHourVerdict: verdict(c.firstHour.status), firstHourOfOtherRecentPosts: c.firstHourOthers,
+      engagementRateVerdict: verdict(c.engagementRate.status), engagementRateBasis: c.engagementRate.basis, bookmarkRateVerdict: verdict(c.bookmarkRate.status),
     })));
   });
 

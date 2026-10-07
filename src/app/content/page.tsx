@@ -9,7 +9,7 @@ import { GroupTable } from "@/components/GroupTable";
 import { HBars } from "@/components/HBars";
 
 export const dynamic = "force-dynamic";
-const PARAM: Record<string, string> = { series: "series", topic: "topic", format: "format", content_type: "ctype", hook_type: "hook" };
+const PARAM: Record<string, string> = { series: "series" };
 
 export default async function ContentPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ds = getDataset();
@@ -23,21 +23,21 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
   const rows = groupPosts(posts, (p) => dimensionValue(p, dimKey));
   const overall = summarize(posts);
   const tags = tagValues(ds.originals);
-  const base = { range: f.range !== "all" ? f.range : "all", week: f.week, from: f.from, to: f.to, series: f.series, topic: f.topic, format: f.format, ctype: f.ctype, hook: f.hook };
+  const base = { range: f.range !== "all" ? f.range : "all", week: f.week, from: f.from, to: f.to, series: f.series, format: f.format };
   const hrefFor: Record<string, string> = {};
   if (PARAM[dimKey]) for (const r of rows) hrefFor[r.key] = `/posts${toQuery({ ...base, [PARAM[dimKey]]: r.key })}`;
   const untagged = rows.find((r) => r.key === "Untagged");
-  const auto = posts.filter((p) => p.class_source === "rule" || p.class_source === null).length;
+  const auto = posts.filter((p) => p.series_source !== "manual").length;
 
   return (
     <>
       <PageHeader title="Content" subtitle="Performance grouped by how posts are tagged. Rates are medians of per-post rates. Groups with fewer than 3 posts are dimmed and marked low sample."
         tabs={<UrlTabs variant="underline" param="dim" fallback="series" options={DIMENSIONS.map((d) => ({ key: d.key, label: d.label }))} />} />
-      <FilterBar show={["range", "series", "topic", "format", "ctype", "hook"]} defaultRange="90d" windowLabel={win.label}
-        options={{ series: tags.series, topic: tags.topic, format: tags.format, ctype: tags.content_type, hook: tags.hook_type }}
+      <FilterBar show={["range", "series"]} defaultRange="90d" windowLabel={win.label}
+        options={{ series: tags.series }}
         count={`${win.label} · ${posts.length} posts · overall median ${fmtCompact(overall.medianImpressions)} impr., ${fmtRate(overall.medianEngagementRate)} ER`} />
-      {dimKey !== "format" && auto > 0 && (
-        <div className="mb-4"><Notice>{auto} of {posts.length} posts here carry automatic keyword tags that nobody has reviewed. A wrong tag puts a post in the wrong group - open a post to correct it.</Notice></div>
+      {dimKey === "series" && auto > 0 && (
+        <div className="mb-4"><Notice>{auto} of {posts.length} posts here have an automatically detected format. A wrong one puts a post in the wrong group - open a post to correct it.</Notice></div>
       )}
       <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
         <Card title={`Median impressions by ${dim.label.toLowerCase()}`} subtitle="Click a group to see its posts.">
@@ -47,7 +47,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
           <GroupTable rows={rows} label={dim.label} hrefFor={hrefFor} />
         </Card>
       </div>
-      <p className="mt-3 text-xs leading-5 text-muted">A higher median for a group describes these posts; it does not show that the tag caused the result. Topic, hook, format and timing overlap heavily in a small account history.</p>
+      <p className="mt-3 text-xs leading-5 text-muted">A higher median for a group describes these posts; it does not show that the format or the bait line caused the result - they overlap with timing and with each other in a small account history.</p>
     </>
   );
 }

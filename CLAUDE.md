@@ -14,9 +14,10 @@ The owner talks to Claude in Ukrainian. Code, comments and commit messages stay 
 | `npm test` | Self-test (`scripts/selftest.ts`): mock X server + temp DB, no credits, never touches `data/analytics.db` |
 | `npm run sync` | Incremental sync, last 45 days (`-- --days=N` to change) |
 | `npm run sync:full` | Whole timeline (X serves up to ~3,200 most recent posts) |
-| `npm run sync:fresh` | Sync posts from the last 2 days (used every 15 min by the scheduler) |
-| `npm run schedule:install` / `schedule:remove` | Register / remove the Task Scheduler jobs (15-min fresh sync, daily 08:00 sync; log in data/sync.log) |
-| `npm run classify` | Re-apply rule tags (`-- --ai` for AI tags, `--export` / `--import` for bulk tags) |
+| `npm run sync:auto` | Run every 5 min by the scheduler: syncs the last 2 days only when a post is exactly 1h / 6h / 24h old (+/- 2.5 min) or 15 min passed since the last sync |
+| `npm run sync:fresh` | Sync posts from the last 2 days, now |
+| `npm run schedule:install` / `schedule:remove` | Register / remove the Task Scheduler jobs (5-min auto sync, daily 08:00 sync; log in data/sync.log) |
+| `npm run classify` | Re-apply the automatic format (series) and media type; manual formats are kept |
 | `npm run audit:x` | Live capability check (profile + 5 posts) and stored capability report |
 | `npm run db:migrate` | Apply schema migrations (every command also does this on open) |
 | `npm run import:legacy` | Import `posts_YYYY-MM-DD.json` from the old Python collector as historical snapshots |
@@ -51,9 +52,13 @@ All UI follows **DESIGN.md**: the X Developer Console look (console.x.com dark t
 
 ## Methodology (keep consistent)
 
+- The Timing page was removed at the owner's request (2026-10-07); posting-time breakdowns remain in MCP `get_breakdown` (bucket / dow / hour).
 - Weekly reports were removed at the owner's request (2026-10-06); the `weekly_reports` table stays in the DB, unused.
+- Bait = one of the last 3 non-empty lines has "save/bookmark this/it" or "article below" (added 2026-10-07) (`hasBait`, derived on load, not stored). Overview card "Bait vs no bait" (median ER + bookmark rate, replaced the "Posts published" chart at the owner's request), Content tab and MCP breakdown dimension `bait`.
+- Topic, subtopic, content type, hook and the news flag were removed at the owner's request (2026-10-07): never derive, show, filter or count them again (no rule or AI tagging). The columns stay in the DB, unused. AI classification (`classify/ai.ts`) was deleted with them.
+- Naming: in the UI the series field is labelled **"Format"** (owner's request 2026-10-07); the structural media format (Video, Image ...) is labelled "Media" and is hidden from the Posts page, its filters and the Content tabs because nearly every post is a video. The Posts page lists original posts only (no kind selector).
 - Series = owner's content line: Animated file / Animated scene / Other (`deriveSeries` in classify/rules.ts, headline of video/GIF posts; manual values win).
-- Early growth (`src/lib/analytics/growth.ts`): impressions at 1h/6h/24h only from snapshots (measured near the age, or interpolated between close snapshots, else null). Latest-post card ranks among the last 10 at the same age when >= 3 comparable posts, else by total (labelled). Status icons: above p75 / below p25 / check in between, only with n >= 3.
+- Early growth (`src/lib/analytics/growth.ts`): impressions at 1h/6h/24h only from snapshots (measured near the age, or interpolated between close snapshots, else null). Latest-post card ranks among the last 10 at the same age when >= 3 comparable posts, else by total (labelled). Status icons: above p75 / below p25 / check in between, only with n >= 3; first hour / 6h / 24h use above / below the median from n = 1 (owner's request, n shown when < 3). Exact capture ages: `CAPTURE_MINUTES` = 60, 360, 1440 (owner chose only these; no 15/30/45-min marks). The latest-post card has no rank row and no bookmark rate (owner's request); its engagement-rate arrow compares with the median ER of the 15 posts with the most similar impressions (`similarReach`, log scale), because ER falls as reach grows.
 
 - Engagement rate = (likes + replies + reposts + quotes + bookmarks) / impressions. Public interactions only, so old posts stay comparable.
 - Originals = `post` + `quote` without `article_title`. Replies, reposts and X Articles are stored and browsable but excluded from baselines, scores, reports and post counts (owner's decision, 2026-10-05). Quote posts promoting an article stay in.
@@ -77,7 +82,7 @@ src/lib/db.ts           SQLite schema, migrations (append new ones, never edit a
 src/lib/x/              client.ts (OAuth 1.0a, retries, rate limits), map.ts (payload -> row), sync.ts
 src/lib/metrics.ts      per-post rates; stats.ts null-safe stats helpers
 src/lib/analytics/      scoring, summaries, time series, activity, growth (early performance)
-src/lib/classify/       taxonomy, rule classifier, optional AI classifier, tag store
+src/lib/classify/       taxonomy (Content dimensions), rules (series, bait, media type), store (manual format)
 src/app/                dashboard pages + API routes (api/sync, api/posts/[id])
 scripts/                CLI entry points and selftest
 data/analytics.db       the database (gitignored); data/backups/ also gitignored
@@ -88,6 +93,5 @@ Windows notes: npm 11+ blocks install scripts unless allowed; `package.json` `al
 
 ## Known caveats and open items
 
-- AI classification (`ANTHROPIC_API_KEY`) was never tested live.
-- Scheduled sync is installed on the owner's PC since 2026-10-06 (15-min fresh + daily 08:00). Early-growth data exists only for posts published after that.
+- Scheduled sync is installed on the owner's PC: "X-Panel auto sync" every 5 min (`sync:auto`) since 2026-10-07, "X-Panel daily sync" 08:00. Early-growth data exists only for posts published after that.
 - Legacy files `x_collect.py`, `posts_2026-10-05.csv` / `.json` and `account_history.csv` are kept for reference only; do not build on them.

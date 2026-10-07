@@ -21,10 +21,19 @@ export interface AgeValue {
   estimated: boolean;
 }
 
+/** Ages (hours) shown in "Early performance". The first hour is the one the owner tracks. */
 export const MILESTONES = [1, 6, 24] as const;
 export type Status = "above" | "typical" | "below";
-/** Minimum number of comparison posts before a status or same-age rank is shown. */
+/** Minimum number of comparison posts before a range status or same-age rank is shown. */
 export const MIN_COMPARE = 3;
+
+/** A verdict: range-based (p25-p75, from statusOf) or a plain above / below the median (from medianVerdict). */
+export interface Verdict { status: Status; n: number; low: number; high: number; byMedian?: boolean }
+
+/** "milestone" label: 0.25 -> "15 min", 1 -> "1 hour", 6 -> "6 hours". */
+export function ageMark(hours: number): string {
+  return hours < 1 ? `${Math.round(hours * 60)} min` : hours === 1 ? "1 hour" : `${hours} hours`;
+}
 
 export function impressionsAtAge(createdAt: string, snaps: SnapPoint[], hours: number): AgeValue | null {
   const t0 = Date.parse(createdAt);
@@ -45,11 +54,23 @@ export function impressionsAtAge(createdAt: string, snaps: SnapPoint[], hours: n
 }
 
 /** Where a value sits against a reference set: above its 75th percentile, below its 25th, or in between. */
-export function statusOf(value: number | null | undefined, reference: (number | null)[]): { status: Status; n: number; low: number; high: number } | null {
+export function statusOf(value: number | null | undefined, reference: (number | null)[]): Verdict | null {
   const ref = reference.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
   if (value === null || value === undefined || ref.length < MIN_COMPARE) return null;
   const low = quantile(ref, 0.25) as number, high = quantile(ref, 0.75) as number;
   return { status: value > high ? "above" : value < low ? "below" : "typical", n: ref.length, low, high };
+}
+
+/**
+ * Above or below the median of the comparison posts (owner's request for first-hour numbers:
+ * an arrow up or down against the typical post). Shown from n = 1; n is always carried so the
+ * UI can mark small samples.
+ */
+export function medianVerdict(value: number | null | undefined, reference: (number | null)[]): Verdict | null {
+  const ref = reference.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  if (value === null || value === undefined || !ref.length) return null;
+  const m = quantile(ref, 0.5) as number;
+  return { status: value > m ? "above" : value < m ? "below" : "typical", n: ref.length, low: m, high: m, byMedian: true };
 }
 
 export interface MilestoneRow {
@@ -58,7 +79,7 @@ export interface MilestoneRow {
   /** Same-age values of the comparison posts. */
   others: number[];
   median: number | null;
-  status: ReturnType<typeof statusOf>;
+  status: Verdict | null;
 }
 
 /** Impressions at 1h / 6h / 24h for one post, against the other posts at the same ages. */
@@ -69,7 +90,7 @@ export function milestones(post: Post, snaps: Map<number, SnapPoint[]>, comparis
       .filter((p) => p.id !== post.id)
       .map((p) => impressionsAtAge(p.created_at, snaps.get(p.id) ?? [], h)?.value ?? null)
       .filter((v): v is number => v !== null);
-    return { hours: h, value, others, median: others.length ? (quantile(others, 0.5) as number) : null, status: statusOf(value?.value, others) };
+    return { hours: h, value, others, median: others.length ? (quantile(others, 0.5) as number) : null, status: medianVerdict(value?.value, others) };
   });
 }
 
@@ -80,9 +101,38 @@ export interface RecentCard {
   ageHours: number;
   rank: { rank: number; of: number; sameAge: boolean } | null;
   impressions: { value: number | null; status: ReturnType<typeof statusOf>; basis: string };
-  firstHour: { value: AgeValue | null; status: ReturnType<typeof statusOf> };
-  engagementRate: { value: number | null; status: ReturnType<typeof statusOf> };
+  firstHour: { value: AgeValue | null; status: Verdict | null };
+  /** First-hour impressions of the other recent posts (for the first-hour meter). */
+  firstHourOthers: number[];
+  /** Engagement rate against posts with similar impressions (see similarReach), not against all posts. */
+  engagementRate: { value: number | null; status: Verdict | null; basis: string };
   bookmarkRate: { value: number | null; status: ReturnType<typeof statusOf> };
+}
+
+/**
+ * Engagement rate falls as reach grows (a post that reaches people beyond the core audience gets a
+ * lower share of interactions), so comparing a 10K-impression post with a 500-impression post is
+ * unfair. similarReach picks the REACH_NEIGHBOURS posts whose impressions are closest on a log scale
+ * (500 vs 1,000 counts as close as 5,000 vs 10,000) and the verdict is above / below their median ER.
+ */
+export const REACH_NEIGHBOURS = 15;
+export function similarReach(post: Post, pool: Post[], k = REACH_NEIGHBOURS): Post[] {
+  if (post.impressions === null || post.impressions <= 0) return [];
+  const x = Math.log10(post.impressions);
+  return pool
+    .filter((p) => p.id !== post.id && p.impressions !== null && p.impressions > 0 && p.engagement_rate !== null)
+    .sort((a, b) => Math.abs(Math.log10(a.impressions as number) - x) - Math.abs(Math.log10(b.impressions as number) - x))
+    .slice(0, k);
+}
+export function erVsSimilarReach(post: Post, pool: Post[]): { value: number | null; status: Verdict | null; basis: string } {
+  const peers = similarReach(post, pool);
+  const imps = peers.map((p) => p.impressions as number);
+  const range = imps.length ? `${Math.min(...imps).toLocaleString("en-US")}-${Math.max(...imps).toLocaleString("en-US")} impressions` : "";
+  return {
+    value: post.engagement_rate,
+    status: peers.length >= MIN_COMPARE ? medianVerdict(post.engagement_rate, peers.map((p) => p.engagement_rate)) : null,
+    basis: `your ${peers.length} posts with the most similar impressions (${range})`,
+  };
 }
 
 /**
@@ -119,15 +169,44 @@ export function recentCard(originals: Post[], snaps: Map<number, SnapPoint[]>, i
     impStatus = post.maturing ? null : statusOf(post.impressions, others.map((p) => p.impressions));
     basis = post.maturing ? "still growing - no same-age data for older posts yet" : `vs total impressions of ${others.length} recent posts`;
   }
-  const firstHour = impressionsAtAge(post.created_at, snaps.get(post.id) ?? [], 1);
-  const othersFirstHour = others.map((p) => impressionsAtAge(p.created_at, snaps.get(p.id) ?? [], 1)?.value ?? null);
+  const at = (p: Post, h: number) => impressionsAtAge(p.created_at, snaps.get(p.id) ?? [], h);
+  const firstHour = at(post, 1);
+  const firstHourOthers = others.map((p) => at(p, 1)?.value ?? null).filter((v): v is number => v !== null);
   return {
     post, index, total: recent.length, ageHours: age, rank,
     impressions: { value: post.impressions, status: impStatus, basis },
-    firstHour: { value: firstHour, status: statusOf(firstHour?.value, othersFirstHour) },
-    engagementRate: { value: post.engagement_rate, status: statusOf(post.engagement_rate, others.map((p) => p.engagement_rate)) },
+    firstHour: { value: firstHour, status: medianVerdict(firstHour?.value, firstHourOthers) },
+    firstHourOthers,
+    engagementRate: erVsSimilarReach(post, originals),
     bookmarkRate: { value: post.bookmark_rate, status: statusOf(post.bookmark_rate, others.map((p) => p.bookmark_rate)) },
   };
+}
+
+/**
+ * Ages (minutes after publishing) at which the auto sync takes a snapshot on time, so the 1h, 6h and
+ * 24h values are measured (+/- 2.5 minutes) instead of interpolated (owner's choice, 2026-10-07).
+ * The scheduled task runs every 5 minutes and only calls the API when one of these is due or the
+ * regular 15-minute sync is.
+ */
+export const CAPTURE_MINUTES = [60, 360, 1440] as const;
+export const CAPTURE_WINDOW_MIN = 2.5;
+
+/** The first post (if any) that is within CAPTURE_WINDOW_MIN of a capture age and has no snapshot near it yet. */
+export function captureDue(
+  posts: { id: number; created_at: string }[],
+  snaps: Map<number, SnapPoint[]>,
+  nowMs: number
+): { postId: number; minutes: number } | null {
+  for (const p of posts) {
+    const t0 = Date.parse(p.created_at);
+    const age = (nowMs - t0) / 60000;
+    for (const m of CAPTURE_MINUTES) {
+      if (Math.abs(age - m) > CAPTURE_WINDOW_MIN) continue;
+      const taken = (snaps.get(p.id) ?? []).some((s) => Math.abs((Date.parse(s.capturedAt) - t0) / 60000 - m) <= CAPTURE_WINDOW_MIN);
+      if (!taken) return { postId: p.id, minutes: m };
+    }
+  }
+  return null;
 }
 
 /** "First 9 days 1 hour" style age label. */

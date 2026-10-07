@@ -1,6 +1,6 @@
 import { getDb, getMeta, setMeta, METRIC_KEYS, type MetricValues, type PostRow } from "../db";
 import { computeRates } from "../metrics";
-import { classifyByRules, deriveFormat, deriveSeries } from "../classify/rules";
+import { deriveFormat, deriveSeries } from "../classify/rules";
 import { refreshCapabilities } from "../capabilities";
 import { redact } from "../env";
 import { XClient, XApiError } from "./client";
@@ -238,7 +238,7 @@ export function writePosts(
  * A post counts as a thread when it has at least two self-replies; a single self-reply
  * (the usual "link in the reply") does not change its format.
  */
-/** Thread detection, format derivation and rule-based tags for anything not tagged by a human or AI. */
+/** Thread detection, media format and series (format) derivation; manual values are left alone. */
 export function postProcess(): void {
   const db = getDb();
   db.transaction(() => {
@@ -253,10 +253,6 @@ export function postProcess(): void {
     const rows = db.prepare("SELECT * FROM posts").all() as PostRow[];
     const setFormat = db.prepare("UPDATE posts SET format = ?, format_source = 'rule' WHERE id = ?");
     const setSeries = db.prepare("UPDATE posts SET series = ?, series_source = 'rule' WHERE id = ?");
-    const setClass = db.prepare(
-      "UPDATE posts SET topic = ?, subtopic = ?, content_type = ?, hook_type = ?, is_news = ?, class_source = 'rule', class_updated_at = ? WHERE id = ?"
-    );
-    const now = new Date().toISOString();
     for (const p of rows) {
       if (p.format_source !== "manual") {
         const format = deriveFormat({
@@ -270,13 +266,6 @@ export function postProcess(): void {
       if (p.kind !== "repost" && p.series_source !== "manual") {
         const series = deriveSeries(p.text, safeArray(p.media_types));
         if (series !== p.series || p.series_source !== "rule") setSeries.run(series, p.id);
-      }
-      if (p.kind !== "repost" && (p.class_source === null || p.class_source === "rule")) {
-        const c = classifyByRules(p.text, p.article_title);
-        const changed = c.topic !== p.topic || c.subtopic !== p.subtopic || c.content_type !== p.content_type || c.hook_type !== p.hook_type;
-        if (changed || p.class_source === null) {
-          setClass.run(c.topic, c.subtopic, c.content_type, c.hook_type, c.is_news === null ? null : c.is_news ? 1 : 0, now, p.id);
-        }
       }
     }
   })();

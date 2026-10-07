@@ -3,6 +3,7 @@ import { publicEngagements } from "./metrics";
 import { bucketOfHour, localParts, weekOfDate } from "./time";
 import { scorePosts } from "./analytics/scoring";
 import { MATURITY_HOURS, type Post } from "./analytics/types";
+import { hasBait } from "./classify/rules";
 import type { SnapPoint } from "./analytics/growth";
 
 /** Reads everything the dashboard needs in one pass. The data set is small (hundreds of posts). */
@@ -48,6 +49,7 @@ export function toPost(r: PostRow): Post {
     maturing: ageHours < MATURITY_HOURS,
     isOriginal: (r.kind === "post" || r.kind === "quote") && !r.article_title,
     isArticle: !!r.article_title,
+    bait: hasBait(r.text),
     score: null,
     rank: null,
   };
@@ -125,13 +127,9 @@ export function getSnapshotPoints(opts: { postIds?: number[]; maxAgeHours?: numb
 }
 
 /** Distinct tag values currently in use, for filter menus and the tag editor. */
-export function tagValues(posts: Post[]): Record<"series" | "topic" | "subtopic" | "content_type" | "hook_type" | "format", string[]> {
+export function tagValues(posts: Post[]): Record<"series" | "format", string[]> {
   const collect = (pick: (p: Post) => string | null) => [...new Set(posts.map(pick).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b));
   return {
-    topic: collect((p) => p.topic),
-    subtopic: collect((p) => p.subtopic),
-    content_type: collect((p) => p.content_type),
-    hook_type: collect((p) => p.hook_type),
     format: collect((p) => p.format),
     series: collect((p) => p.series),
   };

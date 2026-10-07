@@ -22,8 +22,8 @@ export function useUrlState() {
   return { params, set, pending };
 }
 
-export interface FilterOptions { series?: string[]; topic: string[]; format: string[]; ctype: string[]; hook: string[] }
-type Field = "range" | "series" | "topic" | "format" | "ctype" | "hook" | "min" | "q" | "kind";
+export interface FilterOptions { series?: string[]; format?: string[] }
+type Field = "range" | "series" | "format" | "min" | "q" | "kind";
 
 export function FilterBar({ show, options, defaultRange = "30d", windowLabel, count }: {
   show: Field[]; options?: FilterOptions; defaultRange?: string; windowLabel?: string; count?: string;
@@ -50,7 +50,7 @@ export function FilterBar({ show, options, defaultRange = "30d", windowLabel, co
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [min]);
 
-  const select = (key: "series" | "topic" | "format" | "ctype" | "hook", label: string, values: string[]) => {
+  const select = (key: "series" | "format", label: string, values: string[]) => {
     const current = params.get(key) ?? "";
     const list = current && !values.includes(current) ? [current, ...values] : values;
     return (
@@ -60,7 +60,7 @@ export function FilterBar({ show, options, defaultRange = "30d", windowLabel, co
       </select>
     );
   };
-  const active = ["series", "topic", "format", "ctype", "hook", "min", "q", "week", "from", "to", "dow", "slot"].filter((k) => params.get(k));
+  const active = ["series", "format", "min", "q", "week", "from", "to", "dow", "slot"].filter((k) => params.get(k));
 
   return (
     <div className={`mb-4 flex flex-wrap items-center gap-2 ${pending ? "opacity-70" : ""}`}>
@@ -95,15 +95,12 @@ export function FilterBar({ show, options, defaultRange = "30d", windowLabel, co
           <option value="all">Everything</option>
         </select>
       )}
-      {options && has("series") && select("series", "Series", options.series ?? [])}
-      {options && has("topic") && select("topic", "Topic", options.topic)}
-      {options && has("format") && select("format", "Format", options.format)}
-      {options && has("ctype") && select("ctype", "Type", options.ctype)}
-      {options && has("hook") && select("hook", "Hook", options.hook)}
+      {options && has("series") && select("series", "Format", options.series ?? [])}
+      {options && has("format") && select("format", "Media", options.format ?? [])}
       {has("min") && <input className="input w-32" inputMode="numeric" placeholder="Min impressions" aria-label="Minimum impressions" value={min} onChange={(e) => setMin(e.target.value.replace(/[^\d]/g, ""))} />}
       {has("q") && <input className="input w-48" placeholder="Search text" aria-label="Search post text" value={q} onChange={(e) => setQ(e.target.value)} />}
       {active.length > 0 && (
-        <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => { setQ(""); setMin(""); set({ topic: null, format: null, ctype: null, hook: null, min: null, q: null, week: null, from: null, to: null, dow: null, slot: null }); }}>
+        <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => { setQ(""); setMin(""); set({ series: null, format: null, min: null, q: null, week: null, from: null, to: null, dow: null, slot: null }); }}>
           Clear filters
         </button>
       )}

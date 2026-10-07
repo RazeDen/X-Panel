@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDataset, getSnapshotPoints, getSnapshots, tagValues } from "@/lib/data";
-import { milestones } from "@/lib/analytics/growth";
+import { getDataset, getSnapshotPoints, getSnapshots } from "@/lib/data";
+import { ageMark, milestones } from "@/lib/analytics/growth";
 import { StatusIcon } from "@/components/StatusIcon";
-import { DEFAULT_CONTENT_TYPES, DEFAULT_FORMATS, DEFAULT_HOOK_TYPES, DEFAULT_TOPICS } from "@/lib/classify/taxonomy";
 import { SERIES } from "@/lib/classify/rules";
 import { median, percentileRank } from "@/lib/stats";
 import { addDays, formatDateTime } from "@/lib/time";
@@ -16,7 +15,6 @@ import { PostRows } from "@/components/PostCard";
 import type { Post } from "@/lib/analytics/types";
 
 export const dynamic = "force-dynamic";
-const merge = (a: string[], b: string[]) => [...new Set([...a, ...b])];
 
 function Metric({ label, value, sub, missing }: { label: string; value: number | null; sub?: string; missing?: string }) {
   return (
@@ -37,7 +35,6 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
   // Early growth vs every other original post at the same age (needs snapshots from the first ~day).
   const early = post.isOriginal ? milestones(post, getSnapshotPoints({ maxAgeHours: 36 }), ds.originals) : [];
   const ranked = ds.originals.filter((p) => p.rank !== null).length;
-  const tags = tagValues(ds.originals);
   const s = post.score;
 
   // Baselines: the 30 days before this post, and all other original posts.
@@ -57,7 +54,7 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
   const med30 = median(before.map((p) => p.impressions));
 
   const similar = post.isOriginal
-    ? ds.originals.filter((p) => p.id !== post.id && p.topic === post.topic && p.format === post.format && !!post.topic)
+    ? ds.originals.filter((p) => p.id !== post.id && !!post.series && p.series === post.series)
     : [];
   const similarMedian = median(similar.map((p) => p.impressions));
 
@@ -76,7 +73,6 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
       </PageHeader>
 
       {!post.isOriginal && <div className="mb-4"><Notice>This is {post.isArticle ? "an article" : `a ${post.kind}`}. Replies, reposts and articles are stored but not included in baselines, scores or reports.</Notice></div>}
-      {post.maturing && <div className="mb-4"><Notice tone="warn">Published {Math.max(0, Math.round(post.ageHours))}h before the last sync. Numbers are still accumulating - comparisons against older posts understate this one.</Notice></div>}
       {post.missing_since && <div className="mb-4"><Notice tone="warn">X stopped returning this post on {formatDateTime(post.missing_since)} (deleted or unavailable). Its stored history is kept.</Notice></div>}
       {post.impressions === null && post.kind !== "repost" && <div className="mb-4"><Notice tone="warn">X did not return an impression count for this post, so rates and scores cannot be calculated.</Notice></div>}
 
@@ -88,23 +84,25 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
           {post.quoted_is_article ? <Chip>quotes own article</Chip> : null}
           {post.has_link ? <Chip>external link</Chip> : null}
         </span>}>
-          <div className="max-h-[360px] overflow-y-auto whitespace-pre-wrap break-words text-[13px] leading-6 text-ink2">{post.text}</div>
+          {post.media_preview && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={post.media_preview} alt="" className="mb-4 aspect-video w-full rounded-[8px] border border-line object-cover" />
+          )}
+          <div className="max-h-[280px] overflow-y-auto whitespace-pre-wrap break-words text-[13px] leading-6 text-ink2">{post.text}</div>
           {post.externalUrls.length > 0 && (
             <div className="mt-3 border-t border-line pt-3 text-xs text-muted">Links: {post.externalUrls.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer" className="link mr-2 break-all">{u}</a>)}</div>
           )}
         </Card>
 
-        <div className="space-y-4">
-          <Card title="Tags" subtitle="Used for every content breakdown. Type any value to create a new tag.">
-            {post.kind === "repost" ? <div className="text-xs text-muted">Reposts are not tagged.</div> : (
-              <TagEditor postId={post.id} source={post.class_source} seriesOptions={SERIES} seriesSource={post.series_source}
-                initial={{ series: post.series ?? "", topic: post.topic ?? "", subtopic: post.subtopic ?? "", content_type: post.content_type ?? "", hook_type: post.hook_type ?? "", format: post.format ?? "", is_news: post.is_news === null ? null : !!post.is_news }}
-                options={{ topic: merge(DEFAULT_TOPICS, tags.topic), subtopic: tags.subtopic, content_type: merge(DEFAULT_CONTENT_TYPES, tags.content_type), hook_type: merge(DEFAULT_HOOK_TYPES, tags.hook_type), format: merge(DEFAULT_FORMATS, tags.format) }} />
+        <div className="flex flex-col gap-4">
+          <Card title="Format" subtitle="Animated file, Animated scene or Other. Detected automatically; your choice is never overwritten.">
+            {post.kind === "repost" ? <div className="text-xs text-muted">Reposts have no format.</div> : (
+              <TagEditor postId={post.id} initial={post.series ?? ""} options={SERIES} source={post.series_source} />
             )}
           </Card>
 
           {s ? (
-            <Card title="Scores" subtitle={`Relative to ${s.referenceKind === "trailing-90d" ? "your posts from the 90 days before this one" : "all your other posts"}.`} action={<N n={s.referenceN} />}>
+            <Card className="flex-1" title="Scores" subtitle={`Relative to ${s.referenceKind === "trailing-90d" ? "your posts from the 90 days before this one" : "all your other posts"}.`} action={<N n={s.referenceN} />}>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="label">Distribution score</div>
@@ -150,14 +148,14 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
             <tbody>
               {early.map((m) => (
                 <tr key={m.hours} className="border-b border-line/60 last:border-0">
-                  <td className="td text-ink">First {m.hours === 1 ? "hour" : `${m.hours} hours`}</td>
+                  <td className="td text-ink">First {ageMark(m.hours)}</td>
                   <td className="td num text-right font-medium text-ink">
                     {m.value ? <span title={m.value.estimated ? "Estimated between the two snapshots around this age" : `Measured at ${m.value.atHours < 2 ? `${Math.round(m.value.atHours * 60)} min` : `${m.value.atHours.toFixed(1)} h`}`}>{m.value.estimated ? "≈" : ""}{fmtInt(m.value.value)}</span>
                       : <span className="font-normal text-muted">{post.ageHours < m.hours ? "not reached yet" : "not captured"}</span>}
                   </td>
                   <td className="td num text-right">{fmtInt(m.median)}</td>
                   <td className="td text-right"><N n={m.others.length} /></td>
-                  <td className="td"><StatusIcon s={m.status} basis={`other posts at ${m.hours}h`} fmt={fmtCompact} /></td>
+                  <td className="td"><StatusIcon s={m.status} basis={`your other posts at ${ageMark(m.hours)}`} fmt={fmtInt} /></td>
                 </tr>
               ))}
             </tbody>
@@ -250,12 +248,12 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
           </Card>
         )}
         {post.isOriginal && (
-          <Card title="Similar posts" subtitle={post.topic ? `Same topic (${post.topic}) and format (${post.format}).` : "Tag this post to compare it with similar ones."} action={<N n={similar.length} />}>
+          <Card title="Similar posts" subtitle={post.series ? `Same format (${post.series}).` : "Set a format to compare this post with similar ones."} action={<N n={similar.length} />}>
             {similar.length > 0 && similarMedian !== null && post.impressions !== null && (
               <p className="mb-3 text-[13px] text-ink2">Median impressions of similar posts: <span className="num font-medium text-ink">{fmtInt(similarMedian)}</span>. This post: <span className="num font-medium text-ink">{fmtInt(post.impressions)}</span>{similarMedian > 0 ? ` (${fmtMultiple(post.impressions / similarMedian)})` : ""}.</p>
             )}
             <PostRows posts={similar.slice(0, 5).map((p) => slim(p))} />
-            {similar.length > 5 && <div className="mt-3 text-right text-xs"><Link className="link" href={`/posts?topic=${encodeURIComponent(post.topic ?? "")}&format=${encodeURIComponent(post.format ?? "")}`}>See all {similar.length}</Link></div>}
+            {similar.length > 5 && <div className="mt-3 text-right text-xs"><Link className="link" href={`/posts?series=${encodeURIComponent(post.series ?? "")}`}>See all {similar.length}</Link></div>}
           </Card>
         )}
       </div>

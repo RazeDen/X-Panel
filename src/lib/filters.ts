@@ -7,11 +7,8 @@ export interface Filters {
   week: string | null; // 2026-W40 - takes precedence over range
   from: string | null; // YYYY-MM-DD (local)
   to: string | null;
-  topic: string | null;
   format: string | null;
   series: string | null;
-  ctype: string | null;
-  hook: string | null;
   minImp: number | null;
   q: string | null;
   kind: "original" | "all" | "reply" | "repost" | "article";
@@ -43,11 +40,8 @@ export function parseFilters(params: Params, defaults: Partial<Filters> = {}): F
     week: week && weekFromKey(week) ? week : null,
     from: date(get(params, "from")),
     to: date(get(params, "to")),
-    topic: get(params, "topic"),
     format: get(params, "format"),
     series: get(params, "series"),
-    ctype: get(params, "ctype"),
-    hook: get(params, "hook"),
     minImp: Number.isFinite(min) && min > 0 ? min : null,
     q: get(params, "q"),
     kind: (["original", "all", "reply", "repost", "article"].includes(kind ?? "") ? kind : defaults.kind ?? "original") as Filters["kind"],
@@ -82,11 +76,8 @@ export function applyFilters(posts: Post[], f: Filters, now: Date = new Date()):
     if (f.kind === "repost" && p.kind !== "repost") return false;
     if (f.kind === "article" && !p.isArticle) return false;
     if (!inWindow(p, start, end)) return false;
-    if (f.topic && (p.topic ?? "Untagged") !== f.topic) return false;
     if (f.format && (p.format ?? "Untagged") !== f.format) return false;
     if (f.series && (p.series ?? "Untagged") !== f.series) return false;
-    if (f.ctype && (p.content_type ?? "Untagged") !== f.ctype) return false;
-    if (f.hook && (p.hook_type ?? "Untagged") !== f.hook) return false;
     if (f.minImp !== null && (p.impressions === null || p.impressions < f.minImp)) return false;
     if (f.dow && p.dowName !== f.dow) return false;
     if (f.slot && p.bucket !== f.slot) return false;
