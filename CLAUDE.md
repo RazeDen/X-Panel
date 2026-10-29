@@ -31,7 +31,7 @@ Run `npm run typecheck && npm test` after any change to `src/lib` or `scripts`.
 
 - **Secrets.** Never print, log, hardcode or commit secrets. Never open or print `.env`; only `.env.example` may be read. `.env` stays gitignored. Pass anything that may be logged or stored through `redact()` (`src/lib/env.ts`).
 - **Server-side API only.** X API calls happen in CLI scripts and route handlers. Nothing under `src/components` or any client component imports `src/lib/x/*`. No `NEXT_PUBLIC_` names for keys.
-- **History is append-only.** Never delete rows from `posts`, `metric_snapshots` or `account_snapshots`. A post X stops returning is only flagged (`missing_since`). Manual tags (`class_source = 'manual'`, `format_source = 'manual'`) are never overwritten by sync, rules or AI.
+- **History is append-only.** Never delete rows from `posts`, `metric_snapshots` or `account_snapshots`. A post X stops returning is only flagged (`missing_since`). "Delete" in the UI means hide (`hidden_at`, see Methodology), never a row deletion and never a call to X. Manual tags (`class_source = 'manual'`, `format_source = 'manual'`) are never overwritten by sync, rules or AI.
 - **No invented numbers.** An unavailable metric is `NULL` / "unavailable", never 0. A rate is `NULL` when its numerator is missing or impressions are missing or zero. Never fabricate analytics or explanations.
 - **Show sample size.** Every aggregate carries `n`. Prefer median over average. Label n=1 explicitly. Groups below `MIN_SAMPLE` (3) are marked low sample.
 - **Wording.** Say "low distribution relative to baseline". Never claim "X suppressed this post" or explain why the algorithm did something.

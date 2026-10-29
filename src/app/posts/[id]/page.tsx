@@ -11,6 +11,7 @@ import { slim } from "@/lib/slim";
 import { Card, Chip, N, Notice, PageHeader } from "@/components/ui";
 import { LinesChart } from "@/components/charts";
 import { TagEditor } from "@/components/TagEditor";
+import { HideButton } from "@/components/HideButton";
 import { PostRows } from "@/components/PostCard";
 import type { Post } from "@/lib/analytics/types";
 
@@ -29,7 +30,7 @@ function Metric({ label, value, sub, missing }: { label: string; value: number |
 export default async function PostDetail({ params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id);
   const ds = getDataset();
-  const post = ds.posts.find((p) => p.id === id);
+  const post = ds.posts.find((p) => p.id === id) ?? ds.hidden.find((p) => p.id === id);
   if (!post) notFound();
   const snaps = getSnapshots(id);
   // Early growth vs every other original post at the same age (needs snapshots from the first ~day).
@@ -69,10 +70,12 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
     <>
       <div className="mb-3 text-xs"><Link href="/posts" className="link">&larr; All posts</Link></div>
       <PageHeader title={post.article_title ?? "Post"} subtitle={<>{formatDateTime(post.created_at)} (Europe/Warsaw) &middot; {post.dowName} &middot; {post.bucket} slot &middot; last synced {formatDateTime(post.last_synced_at)}</>}>
+        <HideButton postId={post.id} hidden={post.hidden} />
         <a href={post.url} target="_blank" rel="noreferrer" className="btn">Open on X &#8599;</a>
       </PageHeader>
 
-      {!post.isOriginal && <div className="mb-4"><Notice>This is {post.isArticle ? "an article" : `a ${post.kind}`}. Replies, reposts and articles are stored but not included in baselines, scores or reports.</Notice></div>}
+      {post.hidden && <div className="mb-4"><Notice tone="warn">You hid this post{post.hidden_at ? ` on ${formatDateTime(post.hidden_at)}` : ""}. It is left out of every list and number (no rank or scores); its history is kept and still updated. Restore it to count it again.</Notice></div>}
+      {!post.isOriginal && !post.hidden && <div className="mb-4"><Notice>This is {post.isArticle ? "an article" : `a ${post.kind}`}. Replies, reposts and articles are stored but not included in baselines, scores or reports.</Notice></div>}
       {post.missing_since && <div className="mb-4"><Notice tone="warn">X stopped returning this post on {formatDateTime(post.missing_since)} (deleted or unavailable). Its stored history is kept.</Notice></div>}
       {post.impressions === null && post.kind !== "repost" && <div className="mb-4"><Notice tone="warn">X did not return an impression count for this post, so rates and scores cannot be calculated.</Notice></div>}
 

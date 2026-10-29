@@ -8,8 +8,9 @@ import type { SnapPoint } from "./analytics/growth";
 
 /** Reads everything the dashboard needs in one pass. The data set is small (hundreds of posts). */
 export interface Dataset {
-  posts: Post[]; // every stored post, newest first
+  posts: Post[]; // every stored post the owner has not hidden, newest first
   originals: Post[]; // posts + quote posts, articles excluded: the set every analysis runs on
+  hidden: Post[]; // posts the owner hid: kept with their history, left out of every list and number
   account: { username: string | null; name: string | null; avatar: string | null };
   followers: AccountSnapshotRow[];
   lastSync: string | null;
@@ -50,6 +51,7 @@ export function toPost(r: PostRow): Post {
     isOriginal: (r.kind === "post" || r.kind === "quote") && !r.article_title,
     isArticle: !!r.article_title,
     bait: hasBait(r.text),
+    hidden: !!r.hidden_at,
     score: null,
     rank: null,
   };
@@ -58,30 +60,34 @@ export function toPost(r: PostRow): Post {
 const POST_COLUMNS = `id, x_id, url, text, short_text, article_title, created_at, first_seen_at, last_synced_at, missing_since,
   kind, is_self_reply, is_thread_root, is_self_quote, quoted_is_article, referenced_id, conversation_id, in_reply_to_user_id, lang,
   has_media, has_link, media_types, video_duration_ms, external_urls,
-  topic, subtopic, content_type, hook_type, is_news, class_source, class_updated_at, class_note, format, format_source, series, series_source, media_preview,
+  topic, subtopic, content_type, hook_type, is_news, class_source, class_updated_at, class_note, format, format_source, series, series_source, media_preview, hidden_at,
   impressions, likes, replies, reposts, quotes, bookmarks, profile_visits, link_clicks, engagements_reported, organic_impressions,
   video_views, playback_0, playback_25, playback_50, playback_75, playback_100, non_public_available,
   like_rate, reply_rate, repost_rate, quote_rate, bookmark_rate, engagement_rate, profile_visit_rate, link_click_rate,
   video_view_rate, video_completion_rate`;
 
-export function loadPosts(): { posts: Post[]; originals: Post[] } {
+export function loadPosts(): { posts: Post[]; originals: Post[]; hidden: Post[] } {
   const rows = getDb().prepare(`SELECT ${POST_COLUMNS} FROM posts ORDER BY created_at DESC`).all() as PostRow[];
-  const posts = rows.map(toPost);
+  const all = rows.map(toPost);
+  // Hidden posts are dropped before scoring and ranking, so they affect no baseline, score or rank.
+  const posts = all.filter((p) => !p.hidden);
+  const hidden = all.filter((p) => p.hidden);
   const originals = posts.filter((p) => p.isOriginal);
   scorePosts(originals);
   // Rank by impressions among all original posts (1 = most). Ties share the better rank.
   const ranked = originals.filter((p) => p.impressions !== null).sort((a, b) => (b.impressions as number) - (a.impressions as number));
   ranked.forEach((p, i) => { p.rank = i > 0 && ranked[i - 1].impressions === p.impressions ? ranked[i - 1].rank : i + 1; });
-  return { posts, originals };
+  return { posts, originals, hidden };
 }
 
 export function getDataset(): Dataset {
   const db = getDb();
-  const { posts, originals } = loadPosts();
+  const { posts, originals, hidden } = loadPosts();
   const runs = db.prepare("SELECT * FROM sync_runs ORDER BY id DESC LIMIT 30").all() as SyncRunRow[];
   return {
     posts,
     originals,
+    hidden,
     account: { username: getMeta("account_username"), name: getMeta("account_name"), avatar: getMeta("account_avatar") },
     followers: db.prepare("SELECT * FROM account_snapshots ORDER BY captured_at").all() as AccountSnapshotRow[],
     lastSync: getMeta("last_successful_sync"),
@@ -89,7 +95,7 @@ export function getDataset(): Dataset {
     runs,
     capabilities: db.prepare("SELECT * FROM capabilities").all() as CapabilityRow[],
     snapshotCount: (db.prepare("SELECT COUNT(*) AS n FROM metric_snapshots").get() as { n: number }).n,
-    empty: posts.length === 0,
+    empty: posts.length + hidden.length === 0,
   };
 }
 

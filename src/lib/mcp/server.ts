@@ -24,6 +24,7 @@ export const MCP_VERSION = "3.0.0";
 const INSTRUCTIONS = `Personal X (Twitter) analytics for one account, read from the local dashboard database.
 Rules for interpreting the data:
 - "Posts" means original posts and quote posts. Replies, reposts and X Articles are stored but excluded from all aggregates.
+- The owner can hide a post in the dashboard. Hidden posts are left out of every tool's lists and numbers (no rank, no score) but are not deleted: get_post still finds one by id or URL and marks it hidden: true, and get_data_status reports how many are hidden.
 - Rates are fractions per impression (0.0142 = 1.42%). Engagement rate = (likes + replies + reposts + quotes + bookmarks) / impressions.
 - null means the metric is unavailable from the X API (e.g. private metrics for posts older than ~30 days). It is never zero - do not treat it as 0.
 - Prefer medians over averages; always mention the sample size n. Groups with n < ${MIN_SAMPLE} are low sample - do not draw conclusions from them.
@@ -152,7 +153,7 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
 
   server.registerTool("list_posts", {
     title: "List posts",
-    description: "Stored posts with metrics, tags and scores, filtered and sorted like the dashboard Posts table. Use get_post for the full text and history of one post.",
+    description: "Stored posts with metrics, tags and scores, filtered and sorted like the dashboard Posts table (posts the owner hid are left out). Use get_post for the full text and history of one post.",
     inputSchema: {
       ...filterShape,
       kind: z.enum(["original", "reply", "repost", "article", "all"]).default("original").describe("original = posts + quote posts (the analysed set)"),
@@ -195,12 +196,14 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
   }, async ({ id, x_id, history_limit }) => {
     const d = ds();
     const xid = x_id?.match(/status(?:es)?\/(\d+)/)?.[1] ?? x_id?.trim();
-    const p = d.posts.find((q) => (id !== undefined && q.id === id) || (xid && q.x_id === xid));
+    const match = (q: Post) => (id !== undefined && q.id === id) || (!!xid && q.x_id === xid);
+    const p = d.posts.find(match) ?? d.hidden.find(match);
     if (!p) return fail("Post not found. Use list_posts to find its id.");
     const snaps = getSnapshots(p.id);
     const { score } = p;
     return text({
-      id: p.id, xId: p.x_id, url: p.url, kind: p.kind, isArticle: p.isArticle, countedInAnalytics: p.isOriginal,
+      id: p.id, xId: p.x_id, url: p.url, kind: p.kind, isArticle: p.isArticle, countedInAnalytics: p.isOriginal && !p.hidden,
+      hidden: p.hidden, hiddenAt: p.hidden_at,
       published: `${p.localDate} ${p.localTime} (${p.dowName}, ${p.bucket})`, lastSynced: p.last_synced_at, maturing: p.maturing,
       articleTitle: p.article_title, text: p.text,
       rankByImpressions: p.rank, rankedPosts: d.originals.filter((q) => q.rank !== null).length,
@@ -304,13 +307,13 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
 
   server.registerTool("get_data_status", {
     title: "Data status",
-    description: "Data freshness and quality: last sync, recent sync runs, data-quality warnings, stored counts, and which metrics the X API returns for this account (capability report).",
+    description: "Data freshness and quality: last sync, recent sync runs, data-quality warnings, stored counts (including posts the owner hid), and which metrics the X API returns for this account (capability report).",
     inputSchema: {},
     annotations: read,
   }, async () => {
     const d = ds();
     return text({
-      account: d.account, lastSync: d.lastSync, storedPosts: d.posts.length, analysedPosts: d.originals.length, snapshots: d.snapshotCount,
+      account: d.account, lastSync: d.lastSync, storedPosts: d.posts.length + d.hidden.length, hiddenPosts: d.hidden.length, analysedPosts: d.originals.length, snapshots: d.snapshotCount,
       warnings: dataWarnings(d, now()),
       recentSyncs: d.runs.slice(0, 8).map((r) => ({ startedAt: r.started_at, mode: r.mode, status: r.status, fetched: r.posts_fetched, inserted: r.posts_inserted, snapshots: r.snapshots_saved, apiRequests: r.api_requests, error: r.error })),
       capabilities: d.capabilities.map((c) => ({ metric: c.label, status: c.status, postsWithValue: c.posts_with_value, postsChecked: c.posts_checked, note: c.note })),

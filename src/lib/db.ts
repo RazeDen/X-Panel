@@ -183,6 +183,13 @@ ALTER TABLE posts ADD COLUMN series_source TEXT;   -- rule | manual
 ALTER TABLE posts ADD COLUMN media_preview TEXT;   -- preview image URL of the first media item (from the existing media fields)
 `,
   },
+  {
+    id: 3,
+    name: "hidden posts",
+    sql: `
+ALTER TABLE posts ADD COLUMN hidden_at TEXT;       -- set when the owner hides the post in the dashboard; left out of lists and analytics, history kept
+`,
+  },
 ];
 
 type DB = Database.Database;
@@ -304,6 +311,8 @@ export interface PostRow extends MetricValues, RateValues {
   series: string | null;
   series_source: "rule" | "manual" | null;
   media_preview: string | null;
+  /** When the owner hid the post in the dashboard (null = visible). Hidden posts are left out of lists and analytics. */
+  hidden_at: string | null;
   non_public_available: number;
 }
 

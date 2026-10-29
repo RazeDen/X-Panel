@@ -81,6 +81,8 @@ One SQLite file: `data/analytics.db`. Tables:
 
 A metric X does not return is stored as `NULL` and shown as a dash. It is never turned into 0. Posts and snapshots are never deleted: a post that stops appearing in the API is only flagged (`missing_since`).
 
+**Hidden posts.** "Delete" in the dashboard means hide: the post disappears from the Posts table and from every number (baselines, medians, scores, ranks, outliers, activity, the Overview, and the Claude Desktop tools), but nothing is removed from the database. Its snapshots stay, sync keeps updating it, and Restore (Posts → Hidden tab, or the post page) brings it back with its full history. The post is not touched on X. Data & methods shows how many posts are hidden.
+
 Original posts and quote posts are analysed. Replies, reposts and X Articles (long-form posts, `article_title` set) are stored and can be browsed (Posts page, "Kind" filter), but they are excluded from baselines, scores, reports and post counts because their reach is not comparable. Quote posts that promote an article are ordinary posts and stay in.
 
 ## What X returns (capability report)

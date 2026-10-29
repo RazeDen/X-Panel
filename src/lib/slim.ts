@@ -37,6 +37,7 @@ export interface SlimPost {
   quality: number | null;
   outlier: string | null;
   maturing: boolean;
+  hidden: boolean;
   createdAt: string;
 }
 
@@ -49,6 +50,6 @@ export function slim(p: Post, max = 120): SlimPost {
     profileVisits: p.profile_visits, engagementRate: p.engagement_rate, likeRate: p.like_rate, replyRate: p.reply_rate,
     repostRate: p.repost_rate, bookmarkRate: p.bookmark_rate, profileVisitRate: p.profile_visit_rate,
     distribution: p.score?.distribution ?? null, quality: p.score?.quality ?? null, outlier: p.score?.outlier ?? null,
-    maturing: p.maturing, createdAt: p.created_at,
+    maturing: p.maturing, hidden: p.hidden, createdAt: p.created_at,
   };
 }

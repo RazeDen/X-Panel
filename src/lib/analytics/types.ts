@@ -24,6 +24,8 @@ export interface Post extends Omit<PostRow, "media_types" | "external_urls"> {
   isArticle: boolean;
   /** Ends with a call to save / bookmark the post (classify/rules.ts hasBait). */
   bait: boolean;
+  /** Hidden by the owner: kept in the database, left out of every list and number. */
+  hidden: boolean;
   score: PostScore | null;
   /** Rank by impressions among all original posts with an impression count (1 = most); null otherwise. */
   rank: number | null;

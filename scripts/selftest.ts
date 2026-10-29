@@ -164,6 +164,19 @@ async function main() {
   check("topic / type / hook are not derived any more", again.topic === null && again.hook_type === null && again.content_type === null);
   check("account snapshot per sync", (db.prepare("SELECT COUNT(*) AS n FROM account_snapshots").get() as { n: number }).n === 2);
 
+  console.log("Hidden posts");
+  const { setHidden: hide } = await import("../src/lib/classify/store");
+  const hid103 = (db.prepare("SELECT id FROM posts WHERE x_id='103'").get() as { id: number }).id;
+  check("hide a post", hide(hid103, true) && !hide(99999, true));
+  const snaps103 = () => (db.prepare("SELECT COUNT(*) AS n FROM metric_snapshots WHERE post_id = ?").get(hid103) as { n: number }).n;
+  const before103 = snaps103();
+  await withServer((u) => (u.pathname.endsWith("/users/me") ? { status: 200, body: ME } : { status: 200, body: { data: [tweet("103", 300, undefined)], meta: {} } }), () => runSync({ mode: "full", maxRetries: 0 }));
+  const h = loadPosts();
+  check("hidden post kept and still synced, left out of analysis", count().p === 5 && h.hidden.length === 1 && snaps103() === before103 + 1 && !!h.hidden[0].hidden_at && !h.originals.some((p) => p.x_id === "103") && !h.posts.some((p) => p.x_id === "103"));
+  check("hidden post has no rank or score", h.hidden[0].rank === null && h.hidden[0].score === null);
+  hide(hid103, false);
+  check("restore brings it back", loadPosts().originals.some((p) => p.x_id === "103") && (db.prepare("SELECT hidden_at FROM posts WHERE id = ?").get(hid103) as { hidden_at: string | null }).hidden_at === null);
+
   console.log("Posts that disappear from the API");
   await withServer((u) => (u.pathname.endsWith("/users/me") ? { status: 200, body: ME } : { status: 200, body: { data: [tweet("101", 100, PM(1600))], meta: {} } }), () => runSync({ mode: "full", maxRetries: 0 }));
   check("nothing is deleted when the API returns fewer posts", count().p === 5);
@@ -236,6 +249,15 @@ async function main() {
   check("MCP get_post has early performance and rank", Array.isArray(one.earlyPerformance) && one.rankByImpressions === 1);
   check("MCP breakdown carries sample size", (await body("get_breakdown", { dimension: "series", range: "all" })).groups.every((g: { n: number; lowSample: boolean }) => typeof g.n === "number" && typeof g.lowSample === "boolean"));
   check("MCP data status", (await body("get_data_status")).storedPosts === posts.length);
+  const { setHidden } = await import("../src/lib/classify/store");
+  const hid102 = (db.prepare("SELECT id FROM posts WHERE x_id='102'").get() as { id: number }).id;
+  setHidden(hid102, true);
+  check("MCP hidden post left out of lists and numbers", (await body("list_posts", { range: "all" })).matched === originals.length - 1 && (await body("get_overview", { range: "all" })).current.n === originals.length - 1);
+  const hid = await body("get_post", { x_id: "102" });
+  const status = await body("get_data_status");
+  check("MCP hidden post still found, flagged and counted", hid.hidden === true && hid.countedInAnalytics === false && status.hiddenPosts === 1 && status.storedPosts === posts.length);
+  setHidden(hid102, false);
+  check("MCP restored post is back", (await body("list_posts", { range: "all" })).matched === originals.length);
   const synced = await body("run_sync", {});
   check("MCP run_sync uses the sync pipeline", synced.ok === true && synced.newPosts === 1 && syncCalls === 1);
   await client.close();

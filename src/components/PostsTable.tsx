@@ -7,6 +7,7 @@ import { shortDate } from "@/lib/time";
 import type { SlimPost } from "@/lib/slim";
 import { SERIES } from "@/lib/classify/rules";
 import { useUrlState, UrlTabs } from "./filters";
+import { HideButton } from "./HideButton";
 
 type SortKey = "date" | "rank" | "firstHour" | "series" | "impressions" | "likes" | "replies" | "reposts" | "bookmarks" | "profileVisits" | "er" | "distribution" | "quality" | "format";
 const pick: Record<SortKey, (p: SlimPost, rates: boolean) => number | string | null> = {
@@ -55,7 +56,8 @@ function FormatSelect({ post }: { post: SlimPost }) {
   );
 }
 
-export function PostsTable({ posts, compact = false }: { posts: SlimPost[]; compact?: boolean }) {
+/** `hideable` adds a last column with a hide (or restore, for hidden posts) button per row. */
+export function PostsTable({ posts, compact = false, hideable = false }: { posts: SlimPost[]; compact?: boolean; hideable?: boolean }) {
   const router = useRouter();
   const { params, set } = useUrlState();
   const sort = (params.get("sort") as SortKey) in pick ? (params.get("sort") as SortKey) : "date";
@@ -106,6 +108,7 @@ export function PostsTable({ posts, compact = false }: { posts: SlimPost[]; comp
               {head("er", "Eng. rate", true, "(likes + replies + reposts + quotes + bookmarks) / impressions")}
               {head("distribution", "Dist.", true, "Distribution score: reach percentile vs your own baseline (0-100)")}
               {head("quality", "Qual.", true, "Engagement quality score: mean percentile of per-impression rates (0-100)")}
+              {hideable && <th className="th w-10"><span className="sr-only">Hide</span></th>}
             </tr>
           </thead>
           <tbody>
@@ -139,10 +142,11 @@ export function PostsTable({ posts, compact = false }: { posts: SlimPost[]; comp
                 <td className="td num text-right">{fmtRate(p.engagementRate)}</td>
                 <td className="td num text-right">{p.distribution === null ? "—" : Math.round(p.distribution)}</td>
                 <td className="td num text-right">{p.quality === null ? "—" : Math.round(p.quality)}</td>
+                {hideable && <td className="td py-0 text-right" onClick={(e) => e.stopPropagation()}><HideButton postId={p.id} hidden={p.hidden} variant="icon" /></td>}
               </tr>
             ))}
             {!sorted.length && (
-              <tr><td colSpan={10} className="px-4 py-10 text-center text-[13px] text-muted">No posts match these filters.</td></tr>
+              <tr><td colSpan={hideable ? 11 : 10} className="px-4 py-10 text-center text-[13px] text-muted">No posts match these filters.</td></tr>
             )}
           </tbody>
         </table>

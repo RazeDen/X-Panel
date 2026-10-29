@@ -36,6 +36,7 @@ export default function DataPage() {
           <dl className="num mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
             <div><dt className="text-muted">Last successful sync</dt><dd className="text-ink2">{ds.lastSync ? formatDateTime(ds.lastSync) : "never"}</dd></div>
             <div><dt className="text-muted">Stored posts</dt><dd className="text-ink2">{kinds.map((k) => `${k.n} ${k.kind}`).join(", ") || "0"}</dd></div>
+            <div><dt className="text-muted">Hidden posts</dt><dd className="text-ink2">{ds.hidden.length ? <a href="/posts?show=hidden" className="link">{ds.hidden.length} hidden by you</a> : "none"}</dd></div>
             <div><dt className="text-muted">Metric snapshots</dt><dd className="text-ink2">{fmtInt(ds.snapshotCount)}</dd></div>
             <div><dt className="text-muted">Follower readings</dt><dd className="text-ink2">{ds.followers.length}</dd></div>
             <div><dt className="text-muted">Format source</dt><dd className="text-ink2">{sources.map((s) => `${s.n} ${s.s}`).join(", ") || "none"}</dd></div>

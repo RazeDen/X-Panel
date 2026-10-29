@@ -16,3 +16,13 @@ export function saveSeries(postId: number, series: string | null): boolean {
 export function resetSeries(postId: number): void {
   getDb().prepare("UPDATE posts SET series_source = NULL WHERE id = ?").run(postId);
 }
+
+/**
+ * Hides a post from the dashboard (or brings it back). Nothing is deleted: the post and its snapshots
+ * stay in the database and sync keeps updating them; hidden posts are only left out of lists and numbers.
+ */
+export function setHidden(postId: number, hidden: boolean): boolean {
+  const res = getDb().prepare(`UPDATE posts SET hidden_at = ${hidden ? "COALESCE(hidden_at, ?)" : "NULL"} WHERE id = ?`)
+    .run(...(hidden ? [new Date().toISOString(), postId] : [postId]));
+  return res.changes > 0;
+}
