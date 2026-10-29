@@ -50,7 +50,7 @@ The live installation runs on the owner's Ubuntu 24.04 VPS (`root@<server-ip>`, 
 
 ## MCP server (Claude Desktop)
 
-The owner's Claude Desktop chat reads the dashboard data through a local stdio MCP server: `scripts/mcp.ts` (entry: moves to the project root, sends all logs to stderr) and `src/lib/mcp/server.ts` (tools). Tools: `get_overview`, `list_posts`, `get_post`, `get_recent_performance`, `get_breakdown`, `get_outliers`, `get_activity`, `get_data_status`, and the paid `run_sync`. They reuse the same library functions as the pages, so numbers match the dashboard. Registered in `%APPDATA%\Claude\claude_desktop_config.json` as `x-analytics` by `npm run mcp:install` (`scripts/install-mcp.ts`). Claude Desktop rewrites that file from memory, so never edit it while the app runs (an entry added that way on 2026-10-06 was lost); Claude Code runs inside that app, so the owner has to quit it and run the command from a separate terminal.
+The owner's Claude Desktop chat reads the dashboard data through a local stdio MCP server: `scripts/mcp.ts` (entry: moves to the project root, sends all logs to stderr) and `src/lib/mcp/server.ts` (tools). Tools: `get_overview`, `list_posts`, `get_post`, `get_recent_performance`, `get_breakdown`, `get_outliers`, `get_activity`, `list_comments`, `get_data_status`, and the paid `run_sync`. They reuse the same library functions as the pages, so numbers match the dashboard. Registered in `%APPDATA%\Claude\claude_desktop_config.json` as `x-analytics` by `npm run mcp:install` (`scripts/install-mcp.ts`). Claude Desktop rewrites that file from memory, so never edit it while the app runs (an entry added that way on 2026-10-06 was lost); Claude Code runs inside that app, so the owner has to quit it and run the command from a separate terminal.
 
 - **Keep it in sync with the dashboard (owner's standing request).** Whenever a page, metric, filter, tag dimension, methodology rule or data-model field is added or changes significantly, update the matching tool(s) in `src/lib/mcp/server.ts`, the `INSTRUCTIONS` text, the README tool table and the MCP checks in `scripts/selftest.ts` in the same change, bump `MCP_VERSION`, and tell the owner to restart Claude Desktop.
 - stdout is the protocol channel: never write to stdout in code reachable from the MCP server; use `console.error`.
@@ -64,6 +64,8 @@ All UI follows **DESIGN.md**: the X Developer Console look (console.x.com dark t
 ## Methodology (keep consistent)
 
 - The Timing page was removed at the owner's request (2026-10-07); posting-time breakdowns remain in MCP `get_breakdown` (bucket / dow / hour).
+- Hidden posts (owner's request 2026-10-29, chose "hide" over deleting): `posts.hidden_at` set by the eye icon in the Posts table or Hide on the post page (`setHidden` in classify/store.ts, PATCH `/api/posts/[id]` `{ hidden }`). `loadPosts` drops them before scoring and ranking, so they are out of every list, aggregate, baseline, rank and MCP tool; `Dataset.hidden` holds them for the Posts "Hidden" tab (Restore), the post page and MCP `get_post` / `get_data_status`. Sync keeps updating them; restoring brings them back with full history.
+- Comments (owner's request 2026-10-29): replies by other accounts, read through **twitterapi.io** (`src/lib/comments/`, key `TWITTERAPI_IO_KEY`, optional), not the X API, because X bills $0.005 per comment + $0.01 per author profile. `comments` table (migration 4), append-only, `hidden_at` for spam. "Answered" is derived (own reply in `posts` with `referenced_id` = comment id), never stored. `commentsDue` asks only when the 14-day reply-count sum changed or 60 min passed; `syncComments` reads mentions since the last check (first: 7 days) and keeps only replies to the owner by others. Run from `scripts/auto-sync.ts` after the post sync; a comment failure never fails the post sync (error in meta `comments_last_error`, shown on the page). Unanswered comments older than 30 h are "expired" and not shown (`COMMENT_MAX_AGE_HOURS`, owner's request). Each card shows the post thumbnail (`media_preview`). Drafts (owner's choice 2026-10-29, after trying claude.ai links): "Draft in Claude" only copies `draftMessage` (post, the owner's reply it answers if any, the comment) to the clipboard (execCommand fallback, because http://x-panel is not a secure context); the owner pastes it into a Claude chat of their own whose instructions set the voice. No Anthropic API key, never use the owner's subscription token from code. Nothing is ever posted to X from the dashboard.
 - Weekly reports were removed at the owner's request (2026-10-06); the `weekly_reports` table stays in the DB, unused.
 - Bait / no bait was removed at the owner's request (2026-10-29): `hasBait`, the Overview card, the Content tab, the Patterns and Outliers groups, the Posts chip and the MCP `bait` field / breakdown dimension are gone. Never derive or show it again. It was never stored, so the DB is unchanged. The Overview's week-vs-week chart now spans the full row where the bait card was.
 - Topic, subtopic, content type, hook and the news flag were removed at the owner's request (2026-10-07): never derive, show, filter or count them again (no rule or AI tagging). The columns stay in the DB, unused. AI classification (`classify/ai.ts`) was deleted with them.
@@ -81,7 +83,7 @@ All UI follows **DESIGN.md**: the X Developer Console look (console.x.com dark t
 
 ## X API pricing
 
-Pay-per-use: own post read $0.001, other users' posts $0.005, user lookup $0.01; re-reading the same resource is deduplicated per UTC day. An incremental sync is ~120 own-post reads + 1 lookup. **State the cost impact before adding any new API call, expansion or field that reads non-owned resources** (e.g. expanding `referenced_tweets.id` is deliberately avoided).
+Pay-per-use: own post read $0.001, other users' posts $0.005, user lookup $0.01; re-reading the same resource is deduplicated per UTC day. An incremental sync is ~120 own-post reads + 1 lookup. Comments come from twitterapi.io instead ($0.15 per 1,000 tweets with author profiles, minimum $0.00015 per request even when empty - keep requests gated). **State the cost impact before adding any new API call, expansion or field that reads non-owned resources** (e.g. expanding `referenced_tweets.id` is deliberately avoided).
 
 ## Stack and layout
 
@@ -93,7 +95,8 @@ src/lib/db.ts           SQLite schema, migrations (append new ones, never edit a
 src/lib/x/              client.ts (OAuth 1.0a, retries, rate limits), map.ts (payload -> row), sync.ts
 src/lib/metrics.ts      per-post rates; stats.ts null-safe stats helpers
 src/lib/analytics/      scoring, summaries, time series, activity, growth (early performance)
-src/lib/classify/       taxonomy (Content dimensions), rules (series, bait, media type), store (manual format)
+src/lib/comments/       twitterapi.io client, comment sync (gated), comment list / hide / Claude draft prompt
+src/lib/classify/       taxonomy (Content dimensions), rules (series, media type), store (manual format)
 src/app/                dashboard pages + API routes (api/sync, api/posts/[id])
 scripts/                CLI entry points and selftest
 data/analytics.db       the database (gitignored); data/backups/ also gitignored

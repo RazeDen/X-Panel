@@ -58,10 +58,11 @@ If a sync fails (no internet, rate limit, bad keys), it says so and changes noth
 |---|---|
 | Overview | YouTube-style "Latest post performance" card (preview, age, first-hour impressions with an up / down arrow vs your median and a first-hour meter, engagement rate vs posts of similar reach, paging through the last 10 posts; no bookmark rate or rank row), headline cards with change vs the previous period, your series compared, impressions and engagement rate over time, current vs previous week, best and worst post, biggest outliers, rolling account baseline, follower count |
 | Activity | Calendar heatmap of posts per day, streaks, most common posting hour and format |
-| Posts | Searchable, sortable table of your original posts (replies, reposts and articles are not listed) with a thumbnail, rank (#), format (series - changeable right in the table with a dropdown, saved as your choice) and first-hour impressions; posts under 48h old carry a green "new" chip. Filters: date range, week, format, minimum impressions, text. Toggle between counts and per-impression rates |
-| Post detail | Full text, link to X, editable tags and series, metric cards, the two scores, early performance (impressions at 1h / 6h / 24h against your other posts at the same age) and rank, rates against your baseline, growth curve from snapshots, video retention, similar posts |
-| Content | Performance grouped by format (series) or bait / no bait |
-| Patterns | Formats, bait vs no bait, time slots and days by median views over 7 / 30 / 90 days or all time, plus the format / bait groups with the highest bookmark, repost and engagement rates |
+| Posts | Searchable, sortable table of your original posts (replies, reposts and articles are not listed) with a thumbnail, rank (#), format (series - changeable right in the table with a dropdown, saved as your choice) and first-hour impressions; posts under 48h old carry a green "new" chip. Filters: date range, week, format, minimum impressions, text. Toggle between counts and per-impression rates. The eye icon at the end of a row hides the post (see "Hidden posts"); a "Hidden" tab lists hidden posts with a Restore button |
+| Comments | Replies by other accounts to your posts from the last 30 hours that you have not answered yet (older unanswered ones drop off; tabs: To answer / Answered / Hidden): author avatar and name, the comment, the post it is on with its thumbnail, and buttons **Draft in Claude** (copies the post and the comment; paste them into your own Claude chat whose instructions set your voice, and it answers with one reply), **Open on X** and **Hide** (spam; never deleted, Restore brings it back). A comment leaves the list by itself once your reply to it is synced (about 15 minutes). The sidebar shows how many are waiting |
+| Post detail | Hide / Restore button, full text, link to X, editable tags and series, metric cards, the two scores, early performance (impressions at 1h / 6h / 24h against your other posts at the same age) and rank, rates against your baseline, growth curve from snapshots, video retention, similar posts |
+| Content | Performance grouped by format (series) |
+| Patterns | Formats, time slots and days by median views over 7 / 30 / 90 days or all time, plus the formats with the highest bookmark, repost and engagement rates |
 | Outliers | Posts far above or below your own baseline, a reach-vs-quality chart, and posts with low distribution but high engagement quality |
 | Data & methods | Sync button, data-quality warnings, capability report, sync history, methodology |
 
@@ -78,6 +79,10 @@ One SQLite file: `data/analytics.db`. Tables:
 - `capabilities` - which metrics X actually returned, rebuilt after every sync.
 - `weekly_reports` - left over from the removed weekly-report feature; kept, no longer written.
 - `meta` - last successful sync, account handle.
+
+- `comments` - replies by other accounts to your posts and replies, read through twitterapi.io: text, author (id, handle, name, avatar), the post it answers, likes, `hidden_at`. Never deleted; "answered" is not stored but derived from your own replies in `posts`.
+
+`posts.hidden_at` is set when you hide a post (see below) and cleared when you restore it.
 
 A metric X does not return is stored as `NULL` and shown as a dash. It is never turned into 0. Posts and snapshots are never deleted: a post that stops appearing in the API is only flagged (`missing_since`).
 
@@ -184,6 +189,8 @@ They run hidden (no window pops up), skip a run while the previous one is still 
 
 API cost: X bills about $0.001 per own post read and $0.01 per profile lookup, and re-reading the same resource within one UTC day is not billed again. So the 15-minute schedule costs about the same as one sync a day: roughly $0.15 per day (about $4.50 a month) for a ~120-post window. Check the actual price in the X developer console.
 
+**Comments (twitterapi.io):** set `TWITTERAPI_IO_KEY` in `.env` (optional). The X API would bill $0.005 per comment plus $0.01 per author profile; twitterapi.io returns comments with the author's name and avatar for about $0.15 per 1,000 (minimum $0.00015 per request, even when empty). So the 5-minute auto sync asks for comments only when the reply counts of your posts from the last 14 days changed since the last check (those counts come with the normal post sync), or once an hour as a fallback for replies deeper in a thread, and only for mentions newer than the last check. The first check reads the last 7 days. At ~15 comments a day that is well under $1 a month. "Check now" on the Comments page asks right away. Drafting answers costs nothing extra: "Draft in Claude" only copies text for your own Claude chat.
+
 ## Running on a server (24/7)
 
 The dashboard, the sync timers and the MCP server can live on a small Linux VPS so the first-hour capture never misses a post while your PC sleeps. `deploy/` holds everything for Ubuntu with systemd:
@@ -216,7 +223,8 @@ The Claude Desktop chat can read this dashboard's data through a local MCP serve
 | `get_breakdown` | Content page and posting-time groups: groups by format (series), media type, time slot, weekday or hour, with n and low-sample flags | none |
 | `get_outliers` | Outliers page: posts far above / below baseline, low distribution with high engagement quality | none |
 | `get_activity` | Activity page: posts per day, streaks, peak hour, top format | none |
-| `get_data_status` | Last sync, recent sync runs, data-quality warnings, capability report | none |
+| `list_comments` | Comments page: comments to answer (or answered / hidden) with author, text and the post they are on, plus your recent replies as a style sample, so Claude can draft answers in your voice | none |
+| `get_data_status` | Last sync, recent sync runs, data-quality warnings, stored and hidden post counts, capability report | none |
 | `run_sync` | Runs a sync (same as the Sync button) | about $0.13 per incremental run |
 
 Setup (once, and again after moving the project folder):

@@ -5,8 +5,11 @@
  *  - a post published in the last 25 hours is within 2.5 minutes of 1 hour, 6 hours or 24 hours of age
  *    and has no snapshot near that age yet (exact first-hour / 6h / 24h capture), or
  *  - the last sync started 14 or more minutes ago (the regular 15-minute rhythm, which also finds new posts).
- * Otherwise it logs one "skip" line and exits. Each run reads only posts from the last 2 days;
+ * Otherwise it logs one "skip" line. Each run reads only posts from the last 2 days;
  * X bills re-reads of the same post once per UTC day, so the extra runs cost nothing extra.
+ *
+ * Then, when a twitterapi.io key is set, it reads new comments - only when reply counts changed or an
+ * hour passed (src/lib/comments/sync.ts commentsDue). A comment failure never fails the post sync.
  */
 import { loadEnv } from "../src/lib/env";
 
@@ -17,6 +20,7 @@ async function main() {
   const { getSnapshotPoints } = await import("../src/lib/data");
   const { captureDue } = await import("../src/lib/analytics/growth");
   const { runSync } = await import("../src/lib/x/sync");
+  const { commentsDue, syncComments } = await import("../src/lib/comments/sync");
   const db = getDb();
   const now = Date.now();
   const posts = db.prepare(
@@ -27,11 +31,19 @@ async function main() {
   const minutesSince = last ? (now - Date.parse(last.started_at)) / 60000 : Infinity;
   if (!due && minutesSince < 14) {
     console.log(`skip: nothing due, last sync ${Math.round(minutesSince)} min ago`);
-    return;
+  } else {
+    console.log(due ? `capture: post #${due.postId} at ${due.minutes} min` : "regular 15-minute sync");
+    const r = await runSync({ mode: "incremental", days: 2, log: (m) => console.log(`  ${m}`) });
+    console.log(`done: ${r.fetched} fetched, ${r.inserted} new, ${r.snapshots} snapshots, ${r.apiRequests} API requests`);
   }
-  console.log(due ? `capture: post #${due.postId} at ${due.minutes} min` : "regular 15-minute sync");
-  const r = await runSync({ mode: "incremental", days: 2, log: (m) => console.log(`  ${m}`) });
-  console.log(`done: ${r.fetched} fetched, ${r.inserted} new, ${r.snapshots} snapshots, ${r.apiRequests} API requests`);
+  const c = commentsDue();
+  if (c.due) {
+    try {
+      await syncComments({ log: (m) => console.log(`${m} (${c.reason})`) });
+    } catch (err) {
+      console.error(`comments failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 }
 
 main().catch((err) => {

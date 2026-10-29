@@ -50,7 +50,7 @@ export function getXCredentials(): XCredentials {
 /** Removes anything that looks like a credential from a string before it is logged or stored. */
 export function redact(text: string): string {
   let out = text;
-  for (const n of ["X_CONSUMER_KEY", "X_CONSUMER_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET", "X_BEARER_TOKEN", "ANTHROPIC_API_KEY"]) {
+  for (const n of ["X_CONSUMER_KEY", "X_CONSUMER_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET", "X_BEARER_TOKEN", "ANTHROPIC_API_KEY", "TWITTERAPI_IO_KEY"]) {
     const v = process.env[n];
     if (v && v.length >= 6) out = out.split(v).join("[redacted]");
   }

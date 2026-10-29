@@ -12,6 +12,7 @@ import { slim } from "../slim";
 import { MIN_SAMPLE, type GroupRow, type Post, type Summary } from "../analytics/types";
 import { runSync, DEFAULT_WINDOW_DAYS } from "../x/sync";
 import { XApiError } from "../x/client";
+import { commentCounts, commentsStatus, listComments, styleSamples } from "../comments/data";
 
 /**
  * MCP server exposing the dashboard's data to Claude Desktop (stdio, local only).
@@ -19,7 +20,7 @@ import { XApiError } from "../x/client";
  * Keep the tool set in step with the dashboard: when a page or metric changes significantly,
  * update the matching tool here (see CLAUDE.md "MCP server").
  */
-export const MCP_VERSION = "3.0.0";
+export const MCP_VERSION = "3.4.0";
 
 const INSTRUCTIONS = `Personal X (Twitter) analytics for one account, read from the local dashboard database.
 Rules for interpreting the data:
@@ -33,6 +34,7 @@ Rules for interpreting the data:
 - Early numbers (impressions at 1h / 6h / 24h, same-age rank) exist only where a sync ran near that age; "estimated" values are interpolated between two nearby snapshots. Missing early numbers mean "not captured", not zero.
 - "rank" is the post's rank by impressions among all original posts (1 = most).
 - Describe reach as "low/high distribution relative to baseline". Never claim X suppressed or boosted a post, and do not invent reasons for the algorithm's behaviour. Correlation is not causation.
+- Comments (list_comments) are replies by other accounts to the owner's posts, read through twitterapi.io. "open" = not answered yet and under 30 hours old ("expired" = unanswered and older, no longer shown on the page); a comment counts as answered once the owner's own reply to it is synced. When asked to draft answers, write them in the owner's voice (see myRecentReplies), in the commenter's language, short, without hashtags, and never claim anything that is not in the post. The owner posts them by hand; nothing is ever posted from here.
 - Dates and hours are in Europe/Warsaw time; weeks are ISO weeks (2026-W40).
 - run_sync calls the paid X API (about $0.13 per incremental run); only run it when the user asks for fresh data.`;
 
@@ -301,6 +303,29 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
       currentStreak: cur, longestStreak: a.longest, busiestDay: a.busiest, peakHour: a.peakHour, topFormat: a.topFormat,
       postsPerDay: a.weeks.flat().filter((c) => c.inPeriod && c.count > 0).map((c) => ({ date: c.date, posts: c.count })),
       availablePeriods: periods.map((x) => x.key),
+    });
+  });
+
+  server.registerTool("list_comments", {
+    title: "Comments to answer",
+    description: "Replies by other accounts to the owner's posts (dashboard Comments page): who wrote what, on which post, and whether the owner has answered or hidden it. Includes the owner's recent replies as a style sample for drafting answers. Reads only the local database.",
+    inputSchema: {
+      status: z.enum(["open", "answered", "hidden", "expired", "all"]).default("open").describe("open = waiting for an answer and under 30 hours old; expired = unanswered and older"),
+      limit: z.number().int().min(1).max(100).default(30),
+    },
+    annotations: read,
+  }, async ({ status, limit }) => {
+    const rows = listComments(status === "all" ? undefined : status);
+    const s = commentsStatus();
+    return text({
+      counts: commentCounts(), lastChecked: s.lastFetch, lastError: s.lastError, matched: rows.length,
+      comments: rows.slice(0, limit).map((c) => ({
+        id: c.id, url: c.url, status: c.status, at: c.createdLabel, author: c.author.username ? `@${c.author.username}` : null, authorName: c.author.name,
+        text: c.text, likes: c.likeCount,
+        onPost: (c.root ?? c.parent) ? { id: (c.root ?? c.parent)!.id, url: (c.root ?? c.parent)!.url, text: (c.root ?? c.parent)!.text } : null,
+        inReplyToOwnerReply: c.parent?.isReply ? c.parent.text : null, ownerReply: c.myReply?.text ?? null,
+      })),
+      myRecentReplies: styleSamples(),
     });
   });
 

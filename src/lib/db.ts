@@ -190,6 +190,34 @@ ALTER TABLE posts ADD COLUMN media_preview TEXT;   -- preview image URL of the f
 ALTER TABLE posts ADD COLUMN hidden_at TEXT;       -- set when the owner hides the post in the dashboard; left out of lists and analytics, history kept
 `,
   },
+  {
+    id: 4,
+    name: "comments",
+    sql: `
+-- Replies by other accounts to the owner's posts, read through twitterapi.io (src/lib/comments).
+-- Append-only like posts: a comment is never deleted, only hidden by the owner (spam). "Answered" is
+-- not stored: it is derived from the owner's own replies in posts (kind = 'reply', referenced_id = comment id).
+CREATE TABLE comments (
+  id TEXT PRIMARY KEY,                -- X id of the reply
+  url TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  first_seen_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  in_reply_to_id TEXT,                -- the owner's post (or reply) it answers
+  conversation_id TEXT,               -- root post of the thread
+  author_id TEXT,
+  author_username TEXT,
+  author_name TEXT,
+  author_avatar TEXT,
+  like_count INTEGER,
+  reply_count INTEGER,
+  hidden_at TEXT                      -- hidden by the owner; left out of the Comments list
+);
+CREATE INDEX comments_created ON comments (created_at);
+CREATE INDEX comments_reply_to ON comments (in_reply_to_id);
+`,
+  },
 ];
 
 type DB = Database.Database;
@@ -314,6 +342,24 @@ export interface PostRow extends MetricValues, RateValues {
   /** When the owner hid the post in the dashboard (null = visible). Hidden posts are left out of lists and analytics. */
   hidden_at: string | null;
   non_public_available: number;
+}
+
+export interface CommentRow {
+  id: string;
+  url: string;
+  text: string;
+  created_at: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  in_reply_to_id: string | null;
+  conversation_id: string | null;
+  author_id: string | null;
+  author_username: string | null;
+  author_name: string | null;
+  author_avatar: string | null;
+  like_count: number | null;
+  reply_count: number | null;
+  hidden_at: string | null;
 }
 
 export interface SnapshotRow extends MetricValues {

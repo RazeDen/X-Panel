@@ -8,6 +8,7 @@ import { Logo } from "./Logo";
 const ICONS: Record<string, ReactNode> = {
   "/": <><rect x="3" y="3" width="7.5" height="7.5" rx="1.5" /><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" /><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" /><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" /></>,
   "/activity": <><rect x="3" y="5" width="18" height="16" rx="2.5" /><path d="M3 10h18M8 3v4M16 3v4M7.5 14h2M11 14h2M14.5 14h2M7.5 17.5h2M11 17.5h2" /></>,
+  "/comments": <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5zM8 8.5h8M8 12h5" />,
   "/posts": <><rect x="3.5" y="3.5" width="17" height="17" rx="3" /><path d="M8 9h8M8 12.5h8M8 16h5" /></>,
   "/content": <path d="M12 3 2.5 8 12 13l9.5-5zM2.5 12.5 12 17.5l9.5-5M2.5 16.5 12 21.5l9.5-5" />,
   "/patterns": <path d="M5 20V11M11 20V4M17 20v-7M22 20H2" />,
@@ -16,13 +17,15 @@ const ICONS: Record<string, ReactNode> = {
 };
 
 const GROUPS: { label: string | null; items: { href: string; label: string }[] }[] = [
-  { label: null, items: [{ href: "/", label: "Overview" }, { href: "/activity", label: "Activity" }, { href: "/posts", label: "Posts" }] },
+  { label: null, items: [{ href: "/", label: "Overview" }, { href: "/activity", label: "Activity" }, { href: "/posts", label: "Posts" }, { href: "/comments", label: "Comments" }] },
   { label: "Analysis", items: [{ href: "/content", label: "Content" }, { href: "/patterns", label: "Patterns" }, { href: "/outliers", label: "Outliers" }] },
   { label: "System", items: [{ href: "/data", label: "Data & methods" }] },
 ];
 
-export function Sidebar({ account, name, avatar, lastSync, status, issues }: {
+export function Sidebar({ account, name, avatar, lastSync, status, issues, comments = 0 }: {
   account: string | null; name: string | null; avatar: string | null; lastSync: string | null; status: "ok" | "error" | "none"; issues: number;
+  /** Comments waiting for an answer. */
+  comments?: number;
 }) {
   const path = usePathname();
   const statusLabel = `${status === "ok" ? "Last sync ok" : status === "error" ? "Last sync failed" : "Never synced"}${lastSync ? ` · ${lastSync}` : ""}`;
@@ -46,6 +49,7 @@ export function Sidebar({ account, name, avatar, lastSync, status, issues }: {
                     {ICONS[n.href]}
                   </svg>
                   <span className="flex-1">{n.label}</span>
+                  {n.href === "/comments" && comments > 0 && <span className="num rounded-control bg-raised px-1.5 text-[11px] leading-5 text-ink2" title={`${comments} comment(s) to answer`}>{comments}</span>}
                   {n.href === "/data" && issues > 0 && <span className="num rounded-control bg-raised px-1.5 text-[11px] leading-5 text-warn" title={`${issues} data-quality warning(s)`}>{issues}</span>}
                 </Link>
               );

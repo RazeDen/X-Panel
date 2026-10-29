@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
+import { commentCounts } from "@/lib/comments/data";
 import { SyncButton } from "@/components/SyncButton";
 import { getDataset } from "@/lib/data";
 import { dataWarnings } from "@/lib/warnings";
@@ -19,7 +20,7 @@ const ExternalArrow = () => (
 );
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  let sidebar = { account: null as string | null, name: null as string | null, avatar: null as string | null, lastSync: null as string | null, status: "none" as "ok" | "error" | "none", issues: 0 };
+  let sidebar = { account: null as string | null, name: null as string | null, avatar: null as string | null, lastSync: null as string | null, status: "none" as "ok" | "error" | "none", issues: 0, comments: 0 };
   let failure: string | null = null;
   let syncError: string | null = null;
   try {
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lastSync: ds.lastSync ? formatDateTime(ds.lastSync) : null,
       status: !last ? "none" : last.status === "error" ? "error" : "ok",
       issues: warnings.filter((w) => w.level !== "info").length,
+      comments: commentCounts().open,
     };
     const err = warnings.find((w) => w.level === "error");
     if (err) syncError = `${err.title}: ${err.detail}`;

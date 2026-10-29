@@ -44,7 +44,7 @@ async function main() {
   const { median, mad, percentileRank, pctChange, ratio, quantile } = await import("../src/lib/stats");
   const { computeRates } = await import("../src/lib/metrics");
   const { weekOfDate, weekFromKey, localParts, bucketOfHour } = await import("../src/lib/time");
-  const { getDb } = await import("../src/lib/db");
+  const { getDb, setMeta: setMetaForTest } = await import("../src/lib/db");
   const { runSync } = await import("../src/lib/x/sync");
   const { XApiError } = await import("../src/lib/x/client");
   const { loadPosts, getDataset, toPost } = await import("../src/lib/data");
@@ -227,7 +227,7 @@ async function main() {
   const call = async (name: string, args: Record<string, unknown> = {}) => (await client.callTool({ name, arguments: args })) as ToolResult;
   const body = async (name: string, args: Record<string, unknown> = {}) => JSON.parse((await call(name, args)).content[0].text);
   const tools = (await client.listTools()).tools.map((t) => t.name);
-  check("MCP lists all tools", ["get_overview", "list_posts", "get_post", "get_breakdown", "get_recent_performance", "get_outliers", "get_activity", "get_data_status", "run_sync"].every((t) => tools.includes(t)), tools.join(","));
+  check("MCP lists all tools", ["get_overview", "list_posts", "get_post", "get_breakdown", "get_recent_performance", "get_outliers", "get_activity", "get_data_status", "list_comments", "run_sync"].every((t) => tools.includes(t)), tools.join(","));
   check("MCP overview matches the dashboard set", (await body("get_overview", { range: "all" })).current.n === originals.length);
   const listed = await body("list_posts", { range: "all", sort: "impressions" });
   check("MCP list_posts filters and sorts", listed.matched === originals.length && listed.posts[0].impressions >= listed.posts[1].impressions);
@@ -254,6 +254,63 @@ async function main() {
   const synced = await body("run_sync", {});
   check("MCP run_sync uses the sync pipeline", synced.ok === true && synced.newPosts === 1 && syncCalls === 1);
   await client.close();
+
+  console.log("Comments (twitterapi.io mock)");
+  const { commentsDue, syncComments, stripReplyMentions } = await import("../src/lib/comments/sync");
+  const { listComments, setCommentHidden, draftMessage, commentCounts } = await import("../src/lib/comments/data");
+  delete process.env.TWITTERAPI_IO_KEY;
+  check("no comment requests without a key", commentsDue().due === false);
+  process.env.TWITTERAPI_IO_KEY = "test-twitterapi-key";
+  const tw = (id: string, authorId: string, extra: Record<string, unknown> = {}) => ({
+    id, text: `@tester comment ${id} - how did you build it?`, createdAt: new Date(Date.now() - 3600000).toUTCString(), isReply: true,
+    inReplyToId: "101", inReplyToUserId: "1", inReplyToUsername: "tester", conversationId: "101", likeCount: 2,
+    author: { id: authorId, userName: `user${authorId}`, name: `User ${authorId}`, profilePicture: "https://pbs.twimg.com/p.jpg" }, ...extra,
+  });
+  let keyHeader = "", mentionCalls = 0;
+  const twServer = http.createServer((req, res) => {
+    mentionCalls++;
+    keyHeader = String(req.headers["x-api-key"] ?? "");
+    const ok = new URL(req.url ?? "/", "http://x").pathname === "/twitter/user/mentions";
+    res.writeHead(ok ? 200 : 404, { "content-type": "application/json" });
+    res.end(JSON.stringify(ok ? { status: "success", has_next_page: false, next_cursor: "", tweets: [
+      tw("901", "7"),                                                     // a real comment on post 101
+      tw("902", "1"),                                                     // the owner's own tweet
+      tw("903", "8", { isReply: false, inReplyToId: null, inReplyToUserId: null, inReplyToUsername: null }), // plain mention
+      tw("904", "9", { inReplyToUserId: "55", inReplyToUsername: "someone" }), // reply to another account
+    ] } : { status: "error", msg: "not found" }));
+  });
+  await new Promise<void>((r) => twServer.listen(0, "127.0.0.1", r));
+  process.env.TWITTERAPI_IO_BASE = `http://127.0.0.1:${(twServer.address() as AddressInfo).port}`;
+  check("first comment check is due", commentsDue().due === true);
+  const c1 = await syncComments();
+  check("only replies to the owner by others are stored", c1.inserted === 1 && c1.requests === 1 && listComments().length === 1 && keyHeader === "test-twitterapi-key");
+  const c2 = await syncComments();
+  check("a comment read again is updated, not duplicated", c2.inserted === 0 && c2.updated === 1 && listComments().length === 1);
+  check("no request when nothing changed, fallback after an hour", commentsDue().due === false && commentsDue(new Date(Date.now() + 61 * 60000)).due === true);
+  const open = listComments("open");
+  check("comment shows its post and author, reply mentions stripped", open.length === 1 && open[0].parent?.xId === "101" && open[0].author.username === "user7" && open[0].text.startsWith("comment 901") && stripReplyMentions("@a @b hi") === "hi");
+  const msg = draftMessage(open[0]);
+  check("draft text has the post and the comment", msg.startsWith("Post:\npost 101") && msg.includes("Comment by @user7:\ncomment 901"));
+  check("unanswered comments expire after 30 hours", commentCounts(new Date(Date.now() + 30 * 3600000)).open === 0 && commentCounts(new Date(Date.now() + 30 * 3600000)).expired === 1 && commentCounts().open === 1);
+  check("hide and restore a comment", setCommentHidden("901", true) && commentCounts().hidden === 1 && commentCounts().open === 0 && setCommentHidden("901", false) && commentCounts().open === 1);
+  const now2 = new Date().toISOString();
+  db.prepare("INSERT INTO posts (x_id, url, text, created_at, first_seen_at, last_synced_at, kind, referenced_id) VALUES ('950', 'https://x.com/tester/status/950', '@user7 with Claude', ?, ?, ?, 'reply', '901')").run(now2, now2, now2);
+  const answered = listComments("answered");
+  check("own reply marks the comment answered", answered.length === 1 && answered[0].myReply?.text === "with Claude" && commentCounts().open === 0);
+  process.env.TWITTERAPI_IO_BASE = "http://127.0.0.1:9";
+  setMetaForTest("comments_last_fetch", null);
+  let failedCheck = false;
+  try { await syncComments(); } catch { failedCheck = true; }
+  check("a failed comment check is reported and stored", failedCheck && !!(db.prepare("SELECT value FROM meta WHERE key = 'comments_last_error'").get() as { value: string | null }).value);
+  const mcp2 = createMcpServer({ sync: fakeSync });
+  const [ct2, st2] = InMemoryTransport.createLinkedPair();
+  await mcp2.connect(st2);
+  const client2 = new Client({ name: "selftest", version: "1" });
+  await client2.connect(ct2);
+  const lc = JSON.parse(((await client2.callTool({ name: "list_comments", arguments: { status: "all" } })) as ToolResult).content[0].text);
+  check("MCP list_comments", lc.matched === 1 && lc.comments[0].status === "answered" && lc.comments[0].author === "@user7" && Array.isArray(lc.myRecentReplies) && typeof lc.counts.open === "number");
+  await client2.close();
+  await new Promise((r) => twServer.close(r));
 
   db.close();
   fs.rmSync(tmp, { recursive: true, force: true });
