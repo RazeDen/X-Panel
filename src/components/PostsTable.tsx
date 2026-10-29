@@ -128,7 +128,6 @@ export function PostsTable({ posts, compact = false, hideable = false }: { posts
                   <Link href={`/posts/${p.id}`} className="line-clamp-1 text-ink hover:underline" title={p.preview} onClick={(e) => e.stopPropagation()}>{p.preview}</Link>
                   <span className="mt-1 flex flex-wrap gap-1">
                     {p.kind !== "post" && p.kind !== "quote" && <span className="chip">{p.kind}</span>}
-                    {p.bait && <span className="chip" title="Ends with a save / bookmark call">bait</span>}
                     {p.maturing && <span className="chip border-good/40 bg-good/10 text-good" title="Published less than 48h before the last sync - numbers are still growing">new</span>}
                     {p.outlier && <span className={`chip ${p.outlier === "below" ? "border-bad/40 text-bad" : "border-good/40 text-good"}`}>{p.outlier === "below" ? "▼ below baseline" : p.outlier === "far_above" ? "▲ far above baseline" : "▲ above baseline"}</span>}
                   </span>

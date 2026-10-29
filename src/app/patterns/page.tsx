@@ -27,13 +27,13 @@ export default async function PatternsPage({ searchParams }: { searchParams: Pro
   const overall = summarize(posts);
   const q = (extra: Record<string, string>) => `/posts${toQuery({ range: f.range, ...extra })}`;
   const g = (fn: (p: Post) => string | null, order?: string[]) => groupPosts(posts, fn, order);
-  const format = g((p) => p.series, ["Animated file", "Animated scene", "Other"]), bait = g((p) => (p.bait ? "Bait" : "No bait"), ["Bait", "No bait"]);
+  const format = g((p) => p.series, ["Animated file", "Animated scene", "Other"]);
   const bucket = g((p) => p.bucket, TIME_BUCKETS.map((b) => b.label)), dow = g((p) => p.dowName, DOW_NAMES);
 
   const imp = (r: GroupRow) => r.medianImpressions;
-  // Rate rankings pool the format and bait groups, so the label says which one a row belongs to.
+  // Rate rankings over the format groups; the label names the dimension so a row reads on its own.
   const pooled: { dim: string; param: string | null; rows: GroupRow[] }[] = [
-    { dim: "Format", param: "series", rows: format }, { dim: "Bait", param: null, rows: bait },
+    { dim: "Format", param: "series", rows: format },
   ];
   const rateRank = (pick: (r: GroupRow) => number | null): HBarRow[] =>
     pooled.flatMap((d) => d.rows.filter((r) => !r.lowSample && r.key !== "Untagged" && pick(r) !== null)
@@ -48,12 +48,11 @@ export default async function PatternsPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <PageHeader title="Patterns" subtitle={`Which formats, bait lines and time slots go with higher reach and stronger engagement over a longer period. Rankings only include groups with at least ${MIN_SAMPLE} posts; smaller groups are listed after them, dimmed.`} />
+      <PageHeader title="Patterns" subtitle={`Which formats and time slots go with higher reach and stronger engagement over a longer period. Rankings only include groups with at least ${MIN_SAMPLE} posts; smaller groups are listed after them, dimmed.`} />
       <FilterBar show={["range"]} defaultRange="90d" windowLabel={win.label} count={`${win.label} · ${posts.length} posts`} />
       {posts.length < 20 && <div className="mb-4"><Notice tone="warn">Only {posts.length} posts in this range. Most groups will be too small to compare - widen the range.</Notice></div>}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {section("Formats by median views", format, "series")}
-        {section("Bait vs no bait by median views", bait, null)}
         {section("Best time slots", bucket, null, (k) => ({ slot: k }))}
         {section("Best days", dow, null, (k) => ({ dow: k }))}
         <Card title="Highest bookmark-rate categories" subtitle={`Median bookmark rate. Overall: ${fmtRate(overall.medianBookmarkRate, 3)}.`}>
@@ -66,7 +65,7 @@ export default async function PatternsPage({ searchParams }: { searchParams: Pro
           <HBars rows={rateRank((r) => r.medianEngagementRate).map((r) => ({ ...r, display: fmtRate(r.value) }))} empty={`No group has ${MIN_SAMPLE}+ posts in this range`} />
         </Card>
       </div>
-      <p className="mt-3 text-xs leading-5 text-muted">Patterns describe what happened in your history. Format, bait and timing overlap, so a ranking here is a starting point for an experiment, not proof of cause.</p>
+      <p className="mt-3 text-xs leading-5 text-muted">Patterns describe what happened in your history. Format and timing overlap, so a ranking here is a starting point for an experiment, not proof of cause.</p>
     </>
   );
 }

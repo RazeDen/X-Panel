@@ -4,7 +4,7 @@ import { dimensionValue, groupPosts, summarize } from "@/lib/analytics/summary";
 import { DIMENSIONS } from "@/lib/classify/taxonomy";
 import { fmtCompact, fmtRate } from "@/lib/format";
 import { Card, EmptyDatabase, Notice, PageHeader } from "@/components/ui";
-import { FilterBar, UrlTabs } from "@/components/filters";
+import { FilterBar } from "@/components/filters";
 import { GroupTable } from "@/components/GroupTable";
 import { HBars } from "@/components/HBars";
 
@@ -31,8 +31,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageHeader title="Content" subtitle="Performance grouped by how posts are tagged. Rates are medians of per-post rates. Groups with fewer than 3 posts are dimmed and marked low sample."
-        tabs={<UrlTabs variant="underline" param="dim" fallback="series" options={DIMENSIONS.map((d) => ({ key: d.key, label: d.label }))} />} />
+      <PageHeader title="Content" subtitle="Performance grouped by format. Rates are medians of per-post rates. Groups with fewer than 3 posts are dimmed and marked low sample." />
       <FilterBar show={["range", "series"]} defaultRange="90d" windowLabel={win.label}
         options={{ series: tags.series }}
         count={`${win.label} · ${posts.length} posts · overall median ${fmtCompact(overall.medianImpressions)} impr., ${fmtRate(overall.medianEngagementRate)} ER`} />
@@ -47,7 +46,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
           <GroupTable rows={rows} label={dim.label} hrefFor={hrefFor} />
         </Card>
       </div>
-      <p className="mt-3 text-xs leading-5 text-muted">A higher median for a group describes these posts; it does not show that the format or the bait line caused the result - they overlap with timing and with each other in a small account history.</p>
+      <p className="mt-3 text-xs leading-5 text-muted">A higher median for a group describes these posts; it does not show that the format caused the result - formats overlap with timing in a small account history.</p>
     </>
   );
 }

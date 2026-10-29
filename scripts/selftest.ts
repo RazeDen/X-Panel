@@ -50,7 +50,7 @@ async function main() {
   const { loadPosts, getDataset, toPost } = await import("../src/lib/data");
   const { impressionsAtAge, statusOf, medianVerdict, captureDue, recentCard, ageLabel, similarReach } = await import("../src/lib/analytics/growth");
   const { saveSeries } = await import("../src/lib/classify/store");
-  const { deriveFormat, deriveSeries, hasBait } = await import("../src/lib/classify/rules");
+  const { deriveFormat, deriveSeries } = await import("../src/lib/classify/rules");
   const { applyFilters, parseFilters } = await import("../src/lib/filters");
   const { dataWarnings } = await import("../src/lib/warnings");
 
@@ -83,13 +83,6 @@ async function main() {
   check("series rules", deriveSeries("ANTHROPIC DESIGNER LEAKED A 6-RULE FILE THAT TURNS OPUS 5.5 INTO AN ART DIRECTOR", ["video"]) === "Animated file"
     && deriveSeries("CLAUDE ANIMATED JEV SORTING 3,412 LEADS IN 15.7 SECONDS - 1,440 FRAMES, 1 HTML FILE", ["video"]) === "Animated scene"
     && deriveSeries("ANTHROPIC ENGINEER LEAKED A FILE WHERE OPUS 5.5 BUILDS A 20-SECOND ANIMATION", ["photo"]) === "Other");
-  const lines = (...l: string[]) => l.join("\n");
-  check("bait = save/bookmark call in the last 3 lines",
-    hasBait(lines("headline", "", "body", "save this and paste it into Claude Code"))
-    && hasBait(lines("a", "bookmark this before someone else", "last line"))
-    && !hasBait(lines("save this early line", "2", "3", "4", "5"))
-    && hasBait(lines("x", "check the article below, it is the full 10-step studio"))
-    && !hasBait(lines("every list you have saved", "end")));
   check("format rules", deriveFormat({ article: false, isThreadRoot: false, mediaTypes: ["video"], hasLink: false }) === "Video" && deriveFormat({ article: true, isThreadRoot: false, mediaTypes: [], hasLink: false }) === "Article" && deriveFormat({ article: false, isThreadRoot: false, mediaTypes: [], hasLink: false }) === "Text");
 
   console.log("Empty database");
@@ -244,7 +237,7 @@ async function main() {
   check("MCP weekly report tool is gone", !tools.includes("get_weekly_report"));
   const recent = await body("get_recent_performance", { count: 3 });
   check("MCP recent performance cards", Array.isArray(recent) && recent.length === 3 && "firstHour" in recent[0] && "rank" in recent[0]);
-  check("MCP breakdown by bait", (await body("get_breakdown", { dimension: "bait", range: "all" })).groups.every((g: { key: string }) => g.key === "Bait" || g.key === "No bait"));
+  check("MCP bait is gone", (await call("get_breakdown", { dimension: "bait", range: "all" })).isError === true && !("bait" in listed.posts[0]) && !("bait" in one.tags));
   check("MCP breakdown by series", (await body("get_breakdown", { dimension: "series", range: "all" })).groups.some((g: { key: string }) => g.key === "Animated file"));
   check("MCP get_post has early performance and rank", Array.isArray(one.earlyPerformance) && one.rankByImpressions === 1);
   check("MCP breakdown carries sample size", (await body("get_breakdown", { dimension: "series", range: "all" })).groups.every((g: { n: number; lowSample: boolean }) => typeof g.n === "number" && typeof g.lowSample === "boolean"));

@@ -3,7 +3,6 @@ import { publicEngagements } from "./metrics";
 import { bucketOfHour, localParts, weekOfDate } from "./time";
 import { scorePosts } from "./analytics/scoring";
 import { MATURITY_HOURS, type Post } from "./analytics/types";
-import { hasBait } from "./classify/rules";
 import type { SnapPoint } from "./analytics/growth";
 
 /** Reads everything the dashboard needs in one pass. The data set is small (hundreds of posts). */
@@ -50,7 +49,6 @@ export function toPost(r: PostRow): Post {
     maturing: ageHours < MATURITY_HOURS,
     isOriginal: (r.kind === "post" || r.kind === "quote") && !r.article_title,
     isArticle: !!r.article_title,
-    bait: hasBait(r.text),
     hidden: !!r.hidden_at,
     score: null,
     rank: null,

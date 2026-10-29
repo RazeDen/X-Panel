@@ -56,7 +56,7 @@ If a sync fails (no internet, rate limit, bad keys), it says so and changes noth
 
 | Page | What it shows |
 |---|---|
-| Overview | YouTube-style "Latest post performance" card (preview, age, first-hour impressions with an up / down arrow vs your median and a first-hour meter, engagement rate vs posts of similar reach, paging through the last 10 posts; no bookmark rate or rank row), headline cards with change vs the previous period, your series compared, bait vs no bait (median engagement and bookmark rate), impressions and engagement rate over time, current vs previous week, best and worst post, biggest outliers, rolling account baseline, follower count |
+| Overview | YouTube-style "Latest post performance" card (preview, age, first-hour impressions with an up / down arrow vs your median and a first-hour meter, engagement rate vs posts of similar reach, paging through the last 10 posts; no bookmark rate or rank row), headline cards with change vs the previous period, your series compared, impressions and engagement rate over time, current vs previous week, best and worst post, biggest outliers, rolling account baseline, follower count |
 | Activity | Calendar heatmap of posts per day, streaks, most common posting hour and format |
 | Posts | Searchable, sortable table of your original posts (replies, reposts and articles are not listed) with a thumbnail, rank (#), format (series - changeable right in the table with a dropdown, saved as your choice) and first-hour impressions; posts under 48h old carry a green "new" chip. Filters: date range, week, format, minimum impressions, text. Toggle between counts and per-impression rates |
 | Post detail | Full text, link to X, editable tags and series, metric cards, the two scores, early performance (impressions at 1h / 6h / 24h against your other posts at the same age) and rank, rates against your baseline, growth curve from snapshots, video retention, similar posts |
@@ -103,7 +103,7 @@ Checked against the live API for this account on 2026-10-05. The current state i
 
 ## Tags and classification
 
-Each post has two labels used for comparisons, both derived automatically from the post itself. Topic, content type, hook and the news flag were removed on 2026-10-07: they are no longer derived, shown or counted anywhere (old values stay in the database, unused).
+Each post has two labels used for comparisons, both derived automatically from the post itself. Topic, content type, hook and the news flag were removed on 2026-10-07, and the bait / no-bait comparison on 2026-10-29: they are no longer derived, shown or counted anywhere (old values stay in the database, unused).
 
 Three sources, stored per post:
 
@@ -113,7 +113,6 @@ Format (Text, Image, Video, GIF, Article, Thread, Link, Mixed media) is derived 
 
 **Series** is the account owner's content line, the main thing to compare: `Animated file` (an animated post built around a file, config, prompt or rule set) and `Animated scene` (an animation where something happens), everything else `Other`. It is detected from the headline of video / GIF posts (`deriveSeries` in `src/lib/classify/rules.ts`, reading only the first line up to the first " - "); a series you pick on a post page is kept and never overwritten. Edit the keyword lists there to fit your own series.
 
-**Bait** marks posts that end with a call to action: one of the last 3 non-empty lines contains "save this", "save it", "bookmark this", "bookmark it" or "article below" ("check the article below", "more in article below") (`hasBait` in `src/lib/classify/rules.ts`). It is derived from the text on every load, not stored. The Overview compares the median engagement rate and bookmark rate of bait and no-bait posts; the Content page has a Bait tab with the full breakdown. A difference is a correlation, not proof that the line caused it.
 
 
 ## Analytics methodology
@@ -211,10 +210,10 @@ The Claude Desktop chat can read this dashboard's data through a local MCP serve
 | Tool | What it returns | X API cost |
 |---|---|---|
 | `get_overview` | Overview page: period totals and medians, change vs the previous period, best / lowest-reach post, followers | none |
-| `list_posts` | Posts table: filters (period, week, dates, format (series), media type, min impressions, text, kind) and sorting; every row carries format, bait and rank | none |
-| `get_post` | One post (by id, X id or URL): full text, tags and series, all metrics and rates, scores and their components, rank, early performance (1h / 6h / 24h vs other posts), snapshot history | none |
+| `list_posts` | Posts table: filters (period, week, dates, format (series), media type, min impressions, text, kind) and sorting; every row carries format and rank. Hidden posts are left out | none |
+| `get_post` | One post (by id, X id or URL, hidden ones included and flagged `hidden`): full text, tags and series, all metrics and rates, scores and their components, rank, early performance (1h / 6h / 24h vs other posts), snapshot history | none |
 | `get_recent_performance` | The latest-post cards for the last N posts: age, rank (same age or total), first-hour impressions vs the median of other recent posts, verdicts for impressions, engagement and bookmark rate | none |
-| `get_breakdown` | Content page and posting-time groups: groups by format (series), bait, media type, time slot, weekday or hour, with n and low-sample flags | none |
+| `get_breakdown` | Content page and posting-time groups: groups by format (series), media type, time slot, weekday or hour, with n and low-sample flags | none |
 | `get_outliers` | Outliers page: posts far above / below baseline, low distribution with high engagement quality | none |
 | `get_activity` | Activity page: posts per day, streaks, peak hour, top format | none |
 | `get_data_status` | Last sync, recent sync runs, data-quality warnings, capability report | none |
@@ -256,7 +255,7 @@ Replace `C:/path/to/x-analytics` with your project folder (forward slashes work 
 - **History starts when tracking starts.** Growth curves exist only from the first sync. Early-hours data (first hour, same-age ranks) exists only for posts published while the scheduled sync was running; for older posts it was never collected and cannot be recovered.
 - **Impressions over time are by publish date.** X does not expose account impressions per day, so the time charts show impressions earned to date by the posts published in each period.
 - **Young posts are still growing.** Posts under 48 hours old at the last sync are flagged; comparisons with older posts understate them.
-- **Correlation is not causation.** Format, bait and timing overlap heavily in a small history. A group with a higher median is a reason to run a test, not proof that the label caused the result. Nothing here says why X distributed a post the way it did.
+- **Correlation is not causation.** Format and timing overlap heavily in a small history. A group with a higher median is a reason to run a test, not proof that the label caused the result. Nothing here says why X distributed a post the way it did.
 - **Small samples.** With a few dozen posts, medians and percentiles move a lot. Always read the `n=` next to a number.
 - **The format is detected from the headline.** It is rough; correct it on the post page where it matters - every format breakdown is only as good as the labels.
 - **Incremental sync leaves old posts frozen.** Posts older than the sync window keep their last numbers until `npm run sync:full`.
@@ -266,7 +265,7 @@ Replace `C:/path/to/x-analytics` with your project folder (forward slashes work 
 ```
 src/lib/x/            X API client (OAuth 1.0a), payload mapping, sync
 src/lib/analytics/    rates, baselines, scores, outliers, activity, early growth
-src/lib/classify/     format (series), bait and media-type rules, manual format store
+src/lib/classify/     format (series) and media-type rules, manual format store
 src/lib/mcp/          MCP server tools for Claude Desktop
 src/lib/db.ts         SQLite schema and migrations
 src/app/              dashboard pages and API routes

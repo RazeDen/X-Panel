@@ -20,7 +20,6 @@ function OutlierCard({ p, all }: { p: Post; all: Post[] }) {
   // How this post's tags perform across the whole history, compared with the overall median.
   const dims: { label: string; value: string | null; group: Post[] }[] = [
     { label: "Format", value: p.series, group: all.filter((x) => x.series === p.series) },
-    { label: "Bait", value: p.bait ? "Bait" : "No bait", group: all.filter((x) => x.bait === p.bait) },
     { label: "Slot", value: p.bucket, group: all.filter((x) => x.bucket === p.bucket) },
   ];
   const up = s.outlier !== "below";
@@ -31,7 +30,7 @@ function OutlierCard({ p, all }: { p: Post; all: Post[] }) {
           <Link href={`/posts/${p.id}`} className="line-clamp-2 text-[13px] font-medium leading-5 text-ink hover:underline">{preview(p.article_title || p.text, 150)}</Link>
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">
             <span>{shortDate(p.localDate)} {p.localTime}</span>
-            {p.series && <Chip>{p.series}</Chip>}{p.bait && <Chip>bait</Chip>}
+            {p.series && <Chip>{p.series}</Chip>}
             {p.maturing && <Chip tone="good">new</Chip>}
           </div>
         </div>
@@ -47,7 +46,7 @@ function OutlierCard({ p, all }: { p: Post; all: Post[] }) {
         <div><span className="text-muted">Engagement quality</span><br />{s.quality === null ? "—" : `${Math.round(s.quality)} / 100`} <span className="text-muted">&middot; ER {fmtRate(p.engagement_rate)}</span></div>
       </div>
       <div className="mt-3 border-t border-line pt-3">
-        <div className="label mb-1.5">How this post&apos;s format, bait and slot perform across your history</div>
+        <div className="label mb-1.5">How this post&apos;s format and slot perform across your history</div>
         <div className="flex flex-wrap gap-1.5">
           {dims.filter((d) => d.value).map((d) => {
             const m = median(d.group.map((x) => x.impressions));

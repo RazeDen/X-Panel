@@ -1,6 +1,6 @@
 /**
  * Rule-based derivations from a post's own content. Topic, subtopic, content type, hook and the
- * news flag were removed at the owner's request (2026-10-07) and are no longer derived.
+ * news flag were removed at the owner's request (2026-10-07), bait on 2026-10-29; none is derived any more.
  */
 
 /**
@@ -23,17 +23,6 @@ export function deriveSeries(text: string, mediaTypes: string[]): string {
   if (FILE_WORDS.test(headline)) return "Animated file";
   if (SCENE_WORDS.test(headline)) return "Animated scene";
   return "Other";
-}
-
-/**
- * Bait: a closing call to action - save the post ("save this and paste it into Claude Code ...",
- * "bookmark this before ...", "you can save this ...") or go to the article ("check the article
- * below", "more in article below", owner's addition 2026-10-07). Read from the last 3 non-empty
- * lines only, because that is where the owner writes it. Derived on load, never stored.
- */
-const BAIT_WORDS = /\b(save|bookmark)\s+(this|it)\b|\barticle\s+below\b/i;
-export function hasBait(text: string): boolean {
-  return text.split("\n").map((l) => l.trim()).filter(Boolean).slice(-3).some((l) => BAIT_WORDS.test(l));
 }
 
 /** Format is a structural fact derived from what the post contains, not from its wording. */

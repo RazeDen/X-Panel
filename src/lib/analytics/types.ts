@@ -22,8 +22,6 @@ export interface Post extends Omit<PostRow, "media_types" | "external_urls"> {
   isOriginal: boolean;
   /** X Article (long-form). Stored and browsable, never counted as a post. */
   isArticle: boolean;
-  /** Ends with a call to save / bookmark the post (classify/rules.ts hasBait). */
-  bait: boolean;
   /** Hidden by the owner: kept in the database, left out of every list and number. */
   hidden: boolean;
   score: PostScore | null;

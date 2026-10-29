@@ -13,7 +13,6 @@ export interface SlimPost {
   format: string | null;
   series: string | null;
   seriesSource: string | null;
-  bait: boolean;
   rank: number | null;
   mediaPreview: string | null;
   /** Impressions at 1 hour of age, when a snapshot captured it (set by pages that load snapshots). */
@@ -45,7 +44,7 @@ export function slim(p: Post, max = 120): SlimPost {
   return {
     id: p.id, url: p.url, kind: p.kind, localDate: p.localDate, localTime: p.localTime, dowName: p.dowName,
     preview: preview(p.article_title || p.text, max),
-    format: p.format, series: p.series, seriesSource: p.series_source, bait: p.bait, rank: p.rank, mediaPreview: p.media_preview, classSource: p.class_source,
+    format: p.format, series: p.series, seriesSource: p.series_source, rank: p.rank, mediaPreview: p.media_preview, classSource: p.class_source,
     impressions: p.impressions, likes: p.likes, replies: p.replies, reposts: p.reposts, quotes: p.quotes, bookmarks: p.bookmarks,
     profileVisits: p.profile_visits, engagementRate: p.engagement_rate, likeRate: p.like_rate, replyRate: p.reply_rate,
     repostRate: p.repost_rate, bookmarkRate: p.bookmark_rate, profileVisitRate: p.profile_visit_rate,

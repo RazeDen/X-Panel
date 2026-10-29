@@ -32,7 +32,6 @@ Rules for interpreting the data:
 - "series" is the owner's content line - the dashboard and the owner call it "Format" (when the owner says "format" they mean this, not the media type, which is almost always video): "Animated file" (an animated post built around a file, config, prompt or rule set), "Animated scene" (an animation where something happens) or "Other". It is auto-detected from the headline and corrected by hand, so treat it as a label, not ground truth.
 - Early numbers (impressions at 1h / 6h / 24h, same-age rank) exist only where a sync ran near that age; "estimated" values are interpolated between two nearby snapshots. Missing early numbers mean "not captured", not zero.
 - "rank" is the post's rank by impressions among all original posts (1 = most).
-- "bait" is true when one of the post's last 3 lines asks to save or bookmark it ("save this ...", "bookmark this ...") or points to the article ("check the article below", "more in article below"). Compare bait vs no-bait with get_breakdown dimension "bait"; differences are correlations, since bait posts can also differ in topic, series and timing.
 - Describe reach as "low/high distribution relative to baseline". Never claim X suppressed or boosted a post, and do not invent reasons for the algorithm's behaviour. Correlation is not causation.
 - Dates and hours are in Europe/Warsaw time; weeks are ISO weeks (2026-W40).
 - run_sync calls the paid X API (about $0.13 per incremental run); only run it when the user asks for fresh data.`;
@@ -87,7 +86,7 @@ function postRow(p: Post) {
   const s = slim(p, 160);
   return {
     id: s.id, url: s.url, kind: s.kind, date: `${s.localDate} ${s.localTime}`, day: s.dowName, text: s.preview,
-    series: s.series, bait: s.bait, rank: s.rank, media: s.format,
+    series: s.series, rank: s.rank, media: s.format,
     impressions: s.impressions, likes: s.likes, replies: s.replies, reposts: s.reposts, quotes: s.quotes, bookmarks: s.bookmarks,
     profileVisits: s.profileVisits, engagementRate: s.engagementRate, bookmarkRate: s.bookmarkRate,
     distributionScore: s.distribution, qualityScore: s.quality, outlier: s.outlier, maturing: s.maturing,
@@ -207,7 +206,7 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
       published: `${p.localDate} ${p.localTime} (${p.dowName}, ${p.bucket})`, lastSynced: p.last_synced_at, maturing: p.maturing,
       articleTitle: p.article_title, text: p.text,
       rankByImpressions: p.rank, rankedPosts: d.originals.filter((q) => q.rank !== null).length,
-      tags: { format: p.series, formatSource: p.series_source, bait: p.bait, media: p.format },
+      tags: { format: p.series, formatSource: p.series_source, media: p.format },
       structure: { mediaTypes: p.mediaTypes, hasLink: !!p.has_link, threadRoot: !!p.is_thread_root, selfQuote: !!p.is_self_quote, videoDurationMs: p.video_duration_ms },
       metrics: {
         impressions: p.impressions, likes: p.likes, replies: p.replies, reposts: p.reposts, quotes: p.quotes, bookmarks: p.bookmarks,
@@ -233,9 +232,9 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
 
   server.registerTool("get_breakdown", {
     title: "Performance by group",
-    description: "Original posts grouped by format (series), bait or media type (dashboard Content page) or by posting time (time slot, weekday, hour - no longer a dashboard page, still available here): n, median and average impressions, median rates and median scores per group. Groups with lowSample=true have fewer than 3 posts.",
+    description: "Original posts grouped by format (series, the dashboard Content page) or media type or by posting time (time slot, weekday, hour - no longer a dashboard page, still available here): n, median and average impressions, median rates and median scores per group. Groups with lowSample=true have fewer than 3 posts.",
     inputSchema: {
-      dimension: z.enum(["series", "bait", "format", "bucket", "dow", "hour"]).describe("series = the owner's format (Animated file / Animated scene / Other), bait = Bait / No bait, format = media type, bucket = 3-hour time slot, dow = day of week, hour = hour of day"),
+      dimension: z.enum(["series", "format", "bucket", "dow", "hour"]).describe("series = the owner's format (Animated file / Animated scene / Other), format = media type, bucket = 3-hour time slot, dow = day of week, hour = hour of day"),
       ...filterShape,
     },
     annotations: read,

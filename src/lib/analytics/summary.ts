@@ -70,7 +70,6 @@ export const dimensionValue = (p: Post, dim: string): string | null => {
   switch (dim) {
     case "format": return p.format;
     case "series": return p.series;
-    case "bait": return p.bait ? "Bait" : "No bait";
     case "bucket": return p.bucket;
     case "dow": return p.dowName;
     case "hour": return String(p.hour).padStart(2, "0") + ":00";

@@ -86,21 +86,6 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const hrefFor = (i: number) => { const q = new URLSearchParams(keep); if (i) q.set("lp", String(i)); const s = q.toString(); return s ? `/?${s}` : "/"; };
 
   // The owner's two main series against everything else, in the selected range.
-  // Bait (closing "save this" / "bookmark this") vs the rest, in the selected range.
-  // When the selected range has fewer than 3 posts in either group (e.g. every post of the week has
-  // bait), widen it step by step so the card always compares something, and say so.
-  const RANGE_ORDER = ["7d", "30d", "90d", "all"] as const;
-  const baitCandidates = [
-    { range: f.range, label: win.label, posts },
-    ...RANGE_ORDER.slice(RANGE_ORDER.indexOf(f.range) + 1).map((r) => {
-      const rf = parseFilters({ range: r });
-      return { range: rf.range, label: dateWindow(rf, now).label, posts: applyFilters(ds.originals, rf, now) };
-    }),
-  ];
-  const baitWin = baitCandidates.find((c) => c.posts.filter((p) => p.bait).length >= 3 && c.posts.filter((p) => !p.bait).length >= 3) ?? baitCandidates[baitCandidates.length - 1];
-  const baitWidened = baitWin !== baitCandidates[0];
-  const bait = summarize(baitWin.posts.filter((p) => p.bait));
-  const noBait = summarize(baitWin.posts.filter((p) => !p.bait));
   const seriesRows = groupPosts(posts, (p) => p.series, [...SERIES]).filter((r) => SERIES.includes(r.key as (typeof SERIES)[number]));
 
   return (
@@ -147,32 +132,10 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         <Card title="Impressions over time" subtitle={`Impressions to date earned by posts published each ${unit}. Click a bar to see those posts.`}>
           <BarsChart format="compact" series={[{ key: "impressions", label: "Impressions" }]} data={points.map((p) => ({ label: p.label, impressions: p.impressions, href: p.posts ? p.href : undefined, note: p.note }))} />
         </Card>
-        <Card title="Bait vs no bait" subtitle={`${baitWin.label}${baitWidened ? ` (widened: ${win.label.toLowerCase()} has fewer than 3 posts ${posts.filter((p) => !p.bait).length < 3 ? "without" : "with"} bait)` : ""}. Posts ending with "save this" / "bookmark this" / "article below" against the rest; medians per post.`}
-          action={<Link className="link text-[12px]" href={`/content?dim=bait&range=${baitWin.range}`}>Details</Link>}>
-          <BarsChart format="rate" series={[{ key: "bait", label: `Bait (n=${bait.n})` }, { key: "noBait", label: `No bait (n=${noBait.n})` }]}
-            data={[
-              { label: "Engagement rate", bait: bait.medianEngagementRate, noBait: noBait.medianEngagementRate },
-              { label: "Bookmark rate", bait: bait.medianBookmarkRate, noBait: noBait.medianBookmarkRate },
-            ]} height={180} />
-          <div className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 text-[13px]">
-            {[{ label: "Engagement rate", a: bait.medianEngagementRate, b: noBait.medianEngagementRate }, { label: "Bookmark rate", a: bait.medianBookmarkRate, b: noBait.medianBookmarkRate }].map((m) => (
-              <div key={m.label}>
-                <div className="label">{m.label}, bait vs no bait</div>
-                <div className="num mt-1 flex items-baseline gap-2 text-ink">
-                  {fmtRate(m.a)} <span className="text-muted">vs</span> {fmtRate(m.b)}
-                  {m.a !== null && m.b ? <Delta value={m.a / m.b - 1} /> : null}
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="mt-2 text-[11px] leading-4 text-muted">
-            {bait.n < 3 || noBait.n < 3 ? "Fewer than 3 posts in a group - widen the range before reading anything into it. " : ""}A difference here is a correlation: bait and no-bait posts can also differ in topic, series and timing.
-          </p>
-        </Card>
         <Card title="Engagement rate over time" subtitle={`Median per-post engagement rate, by publish ${unit}. Gaps are ${unit}s with no posts.`}>
           <LinesChart format="rate" series={[{ key: "er", label: "Median engagement rate" }]} data={points.map((p) => ({ label: p.label, er: p.engagementRate, note: p.note }))} />
         </Card>
-        <Card title={`Week ${wk.week} vs week ${pwk.week}`} subtitle={`Impressions by publish day. ${wk.label} against ${pwk.label}.`}>
+        <Card className="lg:col-span-2" title={`Week ${wk.week} vs week ${pwk.week}`} subtitle={`Impressions by publish day. ${wk.label} against ${pwk.label}.`}>
           <BarsChart format="compact" series={[{ key: "current", label: `Week ${wk.week}` }, { key: "previous", label: `Week ${pwk.week}` }]} data={weekRows} />
         </Card>
       </div>
