@@ -11,6 +11,8 @@ import { PostRows } from "@/components/PostCard";
 import { slim } from "@/lib/slim";
 import { MIN_REFERENCE, REFERENCE_DAYS, Z_ABOVE, Z_BELOW, Z_FAR_ABOVE } from "@/lib/analytics/scoring";
 import type { Post } from "@/lib/analytics/types";
+import { requestAccountKey } from "@/lib/request-account";
+import { enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +69,7 @@ function OutlierCard({ p, all }: { p: Post; all: Post[] }) {
 }
 
 export default async function OutliersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  enterAccount(await requestAccountKey());
   const ds = getDataset();
   if (ds.empty) return <EmptyDatabase />;
   const f = parseFilters(await searchParams, { range: "90d" });

@@ -15,10 +15,13 @@ import { FilterBar } from "@/components/filters";
 import { PostCard } from "@/components/PostCard";
 import { LatestPostCard } from "@/components/LatestPostCard";
 import type { Post, Summary } from "@/lib/analytics/types";
+import { requestAccountKey } from "@/lib/request-account";
+import { enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
 export default async function Overview({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  enterAccount(await requestAccountKey());
   const ds = getDataset();
   if (ds.empty) return <EmptyDatabase />;
   const now = new Date();

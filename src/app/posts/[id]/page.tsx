@@ -14,6 +14,8 @@ import { TagEditor } from "@/components/TagEditor";
 import { HideButton } from "@/components/HideButton";
 import { PostRows } from "@/components/PostCard";
 import type { Post } from "@/lib/analytics/types";
+import { requestAccountKey } from "@/lib/request-account";
+import { enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,7 @@ function Metric({ label, value, sub, missing }: { label: string; value: number |
 }
 
 export default async function PostDetail({ params }: { params: Promise<{ id: string }> }) {
+  enterAccount(await requestAccountKey());
   const id = Number((await params).id);
   const ds = getDataset();
   const post = ds.posts.find((p) => p.id === id) ?? ds.hidden.find((p) => p.id === id);

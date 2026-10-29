@@ -7,11 +7,14 @@ import { Card, EmptyDatabase, Notice, PageHeader } from "@/components/ui";
 import { FilterBar } from "@/components/filters";
 import { GroupTable } from "@/components/GroupTable";
 import { HBars } from "@/components/HBars";
+import { requestAccountKey } from "@/lib/request-account";
+import { enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 const PARAM: Record<string, string> = { series: "series" };
 
 export default async function ContentPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  enterAccount(await requestAccountKey());
   const ds = getDataset();
   if (ds.empty) return <EmptyDatabase />;
   const sp = await searchParams;

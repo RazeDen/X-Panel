@@ -1,9 +1,11 @@
 import { redact } from "../env";
 
 /**
- * Minimal twitterapi.io client for reading comments (server-side only, never import from a client
- * component). Pricing (2026-10): $0.15 per 1,000 tweets returned, author profiles included, and at
- * least $0.00015 per request even when it returns nothing - so callers only ask when something is new.
+ * Minimal twitterapi.io client: comments for every account, and posts / profile of the extra accounts
+ * (server-side only, never import from a client component). Pricing (2026-10): $0.15 per 1,000 tweets
+ * returned (author profiles included), $0.18 per 1,000 profiles, and at least $0.00015 per request
+ * even when it returns nothing - so callers only ask when something can be new. Re-reads are billed
+ * again (no daily de-duplication like the X API).
  */
 export interface TwitterApiUser {
   id?: string;
@@ -11,8 +13,26 @@ export interface TwitterApiUser {
   name?: string;
   profilePicture?: string;
 }
+export interface TwitterApiMedia {
+  type?: string;
+  media_url_https?: string;
+  video_info?: { duration_millis?: number };
+}
 export interface TwitterApiTweet {
   id: string;
+  type?: string;
+  viewCount?: number;
+  retweetCount?: number;
+  quoteCount?: number;
+  bookmarkCount?: number;
+  lang?: string;
+  entities?: { urls?: { expanded_url?: string; url?: string }[]; media?: TwitterApiMedia[] };
+  extendedEntities?: { media?: TwitterApiMedia[] };
+  extended_entities?: { media?: TwitterApiMedia[] };
+  /** X Article (long-form post): title, start of the text and cover image. */
+  article?: { title?: string; preview_text?: string; cover_media_img_url?: string } | null;
+  quoted_tweet?: TwitterApiTweet | null;
+  retweeted_tweet?: TwitterApiTweet | null;
   url?: string;
   text?: string;
   createdAt?: string;
@@ -44,12 +64,12 @@ export function twitterApiKey(): string | null {
   return process.env.TWITTERAPI_IO_KEY?.trim() || null;
 }
 
-/** One page (up to 20) of tweets mentioning the user, newest first. Replies to the user count as mentions. */
-export async function mentionsPage(userName: string, sinceTime: number, cursor: string): Promise<MentionsPage> {
+/** GET on the twitterapi.io API; throws TwitterApiError with a redacted message on any failure. */
+export async function twitterApiGet<T extends { status?: string; msg?: string }>(path: string, params: Record<string, string>): Promise<T> {
   const key = twitterApiKey();
   if (!key) throw new TwitterApiError("TWITTERAPI_IO_KEY is not set in .env");
   const base = (process.env.TWITTERAPI_IO_BASE || "https://api.twitterapi.io").replace(/\/$/, "");
-  const url = `${base}/twitter/user/mentions?${new URLSearchParams({ userName, sinceTime: String(sinceTime), cursor })}`;
+  const url = `${base}${path}?${new URLSearchParams(params)}`;
   let res: Response;
   try {
     res = await fetch(url, { headers: { "X-API-Key": key }, signal: AbortSignal.timeout(30000) });
@@ -57,7 +77,7 @@ export async function mentionsPage(userName: string, sinceTime: number, cursor: 
     throw new TwitterApiError(`Could not reach twitterapi.io (${redact(err instanceof Error ? err.message : String(err))})`);
   }
   const body = await res.text();
-  let j: MentionsPage & { message?: string } = {};
+  let j = {} as T & { message?: string };
   try {
     j = JSON.parse(body);
   } catch {
@@ -68,4 +88,9 @@ export async function mentionsPage(userName: string, sinceTime: number, cursor: 
     throw new TwitterApiError(`twitterapi.io error ${res.status}: ${redact(String(j.msg || j.message || body.slice(0, 200)))}`, res.status);
   }
   return j;
+}
+
+/** One page (up to 20) of tweets mentioning the user, newest first. Replies to the user count as mentions. */
+export function mentionsPage(userName: string, sinceTime: number, cursor: string): Promise<MentionsPage> {
+  return twitterApiGet<MentionsPage>("/twitter/user/mentions", { userName, sinceTime: String(sinceTime), cursor });
 }

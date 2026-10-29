@@ -8,6 +8,9 @@ import { getDataset } from "@/lib/data";
 import { dataWarnings } from "@/lib/warnings";
 import { formatDateTime } from "@/lib/time";
 import { Notice } from "@/components/ui";
+import { accounts, enterAccount, withAccount } from "@/lib/accounts";
+import { getMeta } from "@/lib/db";
+import { requestAccountKey } from "@/lib/request-account";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
@@ -19,7 +22,19 @@ const ExternalArrow = () => (
   <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><path d="M5 11 11 5M6 5h5v5" /></svg>
 );
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+/** Every account for the sidebar switcher: name and avatar come from each account's own database. */
+function accountChoices() {
+  return accounts().map((a) => withAccount(a.key, () => {
+    try {
+      return { key: a.key, username: getMeta("account_username") ?? a.username, name: getMeta("account_name"), avatar: getMeta("account_avatar") };
+    } catch {
+      return { key: a.key, username: a.username, name: null, avatar: null };
+    }
+  }));
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const current = enterAccount(await requestAccountKey());
   let sidebar = { account: null as string | null, name: null as string | null, avatar: null as string | null, lastSync: null as string | null, status: "none" as "ok" | "error" | "none", issues: 0, comments: 0 };
   let failure: string | null = null;
   let syncError: string | null = null;
@@ -47,7 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="h-screen overflow-hidden bg-page font-sans text-sm">
         {/* Console layout: two floating panels on a black canvas. */}
         <div className="flex h-full gap-3 p-3">
-          <Sidebar {...sidebar} />
+          <Sidebar {...sidebar} accountKey={current.key} choices={accountChoices()} />
           <div className="panel flex min-w-0 flex-1 flex-col overflow-hidden bg-page">
             <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-line px-6">
               <div className="truncate text-[14px] text-ink">{sidebar.account ?? "x-analytics"}</div>

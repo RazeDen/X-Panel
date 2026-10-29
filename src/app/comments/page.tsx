@@ -6,6 +6,8 @@ import { fmtInt, preview } from "@/lib/format";
 import { Chip, Empty, Notice, PageHeader } from "@/components/ui";
 import { UrlTabs } from "@/components/filters";
 import { CommentActions, RefreshComments } from "@/components/CommentActions";
+import { requestAccountKey } from "@/lib/request-account";
+import { enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +56,7 @@ function CommentCard({ c, draft }: { c: CommentView; draft: string | null }) {
 }
 
 export default async function CommentsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  enterAccount(await requestAccountKey());
   const sp = await searchParams;
   const show: CommentStatus = sp.show === "answered" || sp.show === "hidden" ? sp.show : "open";
   const counts = commentCounts();

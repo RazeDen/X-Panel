@@ -55,7 +55,7 @@ Fonts: **Inter** (`--font-inter`) for text and **Geist Mono** (`--font-geist-mon
 ## Layout (`src/app/layout.tsx`)
 
 - `body` is the black canvas, `p-3`, `gap-3`, full viewport height; only the main panel scrolls.
-- **Sidebar panel** (`.panel`, 240px): hatched header with the logo and "X Analytics / Console"; nav groups (none, Analysis, Reports, System) separated by `border-t`, group labels 12px muted; hatched footer with avatar, name and the sync status dot.
+- **Sidebar panel** (`.panel`, 240px): hatched header with the logo and "X Analytics / Console"; nav groups (none, Analysis, Reports, System) separated by `border-t`, group labels 12px muted; hatched footer with avatar, name and the sync status dot. With more than one account the footer is a button (up-down chevron, white/5 hover) that opens an account menu above it: `bg-surface` 10px-radius card with `border-line`, a muted "Accounts" label, rows of 24px avatar + name + muted @handle, a check on the current one.
 - **Main panel** (`.panel bg-page`): 56px top bar with `border-b` - account handle on the left; `Profile ↗`, `API docs ↗`, a divider, the last-sync status and the white **Sync now** button on the right (console "Buy Credits" position). Below it the scroll area with the canvas sheen; content `max-w-[1240px] px-8 pt-8`.
 - Page order: `PageHeader` → filter row (segmented range + dropdowns) → stat tiles (`gap-3`, 6 per row on xl) → cards (`gap-4`).
 

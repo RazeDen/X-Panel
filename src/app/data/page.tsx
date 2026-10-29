@@ -8,6 +8,8 @@ import { SyncButton } from "@/components/SyncButton";
 import { MIN_SAMPLE, MATURITY_HOURS } from "@/lib/analytics/types";
 import { MIN_REFERENCE, REFERENCE_DAYS } from "@/lib/analytics/scoring";
 import { DEFAULT_WINDOW_DAYS } from "@/lib/x/sync";
+import { requestAccountKey } from "@/lib/request-account";
+import { enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 const ORDER = ["impressions", "likes", "replies", "reposts", "quotes", "bookmarks", "profile_visits", "link_clicks", "video_views", "video_quartiles", "engagements_reported", "organic_impressions", "watch_time", "media_engagements", "followers_from_post", "promoted_metrics"];
@@ -18,7 +20,8 @@ const STATUS: Record<string, { label: string; tone: "good" | "warn" | "bad" | un
   not_offered: { label: "Not offered by X API", tone: undefined, icon: "—" },
 };
 
-export default function DataPage() {
+export default async function DataPage() {
+  enterAccount(await requestAccountKey());
   const ds = getDataset();
   const warnings = dataWarnings(ds);
   const db = getDb();

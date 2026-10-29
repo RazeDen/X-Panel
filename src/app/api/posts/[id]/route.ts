@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { resetSeries, saveSeries, setHidden } from "@/lib/classify/store";
 import { postProcess } from "@/lib/x/sync";
+import { requestAccountKey } from "@/lib/request-account";
+import { enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
 /** Save the post's format (series) by hand, or hide / restore the post ({ hidden: true | false }). */
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  enterAccount(await requestAccountKey());
   const id = Number((await ctx.params).id);
   if (!Number.isInteger(id)) return NextResponse.json({ error: "Invalid post id" }, { status: 400 });
   let body: Record<string, unknown>;
@@ -25,6 +28,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
 /** Drop the manual format and hand the post back to automatic detection. */
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  enterAccount(await requestAccountKey());
   const id = Number((await ctx.params).id);
   if (!Number.isInteger(id)) return NextResponse.json({ error: "Invalid post id" }, { status: 400 });
   resetSeries(id);

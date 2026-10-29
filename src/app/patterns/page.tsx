@@ -7,6 +7,8 @@ import { fmtCompact, fmtRate } from "@/lib/format";
 import { Card, EmptyDatabase, Notice, PageHeader } from "@/components/ui";
 import { FilterBar } from "@/components/filters";
 import { HBars, type HBarRow } from "@/components/HBars";
+import { requestAccountKey } from "@/lib/request-account";
+import { enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +21,7 @@ function rank(rows: GroupRow[], pick: (r: GroupRow) => number | null, display: (
 }
 
 export default async function PatternsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  enterAccount(await requestAccountKey());
   const ds = getDataset();
   if (ds.empty) return <EmptyDatabase />;
   const f = parseFilters(await searchParams, { range: "90d" });

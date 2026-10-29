@@ -31,6 +31,12 @@ X_ACCESS_TOKEN=
 X_ACCESS_TOKEN_SECRET=
 ```
 
+## More than one account
+
+The account behind the X API keys is the main one. More accounts can be tracked through twitterapi.io: put their handles in `.env` as `TWITTERAPI_ACCOUNTS=SecondHandle` (comma-separated) next to `TWITTERAPI_IO_KEY`, and restart the dashboard. Each account has its own database (`data/analytics-<handle>.db`), so every page, baseline and score works on one account at a time and nothing is mixed. Switch accounts with the account button at the bottom of the sidebar (remembered in the browser). The auto sync, the daily sync, comments and backups run for every account; Claude Desktop tools take an `account` argument.
+
+Differences for a twitterapi.io account: only public metrics (impressions = X's view count, likes, replies, reposts, quotes, bookmarks); profile visits, link clicks, video views and retention are always "unavailable". twitterapi.io bills every read again (no daily de-duplication), so instead of paging through the timeline an incremental sync makes one search for posts since the last run (about $0.00015 when nothing is new) and re-reads only the stored posts of the window by id (50 per request). With the 15-minute rhythm and the first-hour / 6h / 24h captures that is about $2 a month per account; the first sync reads the whole timeline once (up to ~3,200 tweets, at most about $0.50).
+
 ## Commands
 
 | Command | What it does |
@@ -39,6 +45,7 @@ X_ACCESS_TOKEN_SECRET=
 | `npm run build` / `npm start` | Production build and server (faster than dev mode) |
 | `npm run sync` (alias `npm run sync:x`) | Incremental sync: posts from the last 45 days. New posts are added, recent posts get fresh numbers, and one snapshot per post is appended to the history |
 | `npm run sync -- --days=90` | Incremental sync with a different window |
+| `npm run sync -- --account=secondhandle` | Sync one account only (`main` = the X API account); without it every account is synced |
 | `npm run sync:full` | Re-reads the whole timeline (up to the 3,200 most recent posts). Use for debugging or to refresh old posts |
 | `npm run sync:auto` | What the scheduled task runs every 5 minutes: syncs the last 2 days only when a post is 1h / 6h / 24h old or 15 minutes have passed |
 | `npm run sync:fresh` | Sync only posts from the last 2 days, now |
@@ -216,6 +223,7 @@ The Claude Desktop chat can read this dashboard's data through a local MCP serve
 
 | Tool | What it returns | X API cost |
 |---|---|---|
+| (all tools) | Optional `account` (`main` or an extra account's handle in lower case); each account's data is separate | - |
 | `get_overview` | Overview page: period totals and medians, change vs the previous period, best / lowest-reach post, followers | none |
 | `list_posts` | Posts table: filters (period, week, dates, format (series), media type, min impressions, text, kind) and sorting; every row carries format and rank. Hidden posts are left out | none |
 | `get_post` | One post (by id, X id or URL, hidden ones included and flagged `hidden`): full text, tags and series, all metrics and rates, scores and their components, rank, early performance (1h / 6h / 24h vs other posts), snapshot history | none |

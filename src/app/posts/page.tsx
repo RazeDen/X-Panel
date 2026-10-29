@@ -7,10 +7,13 @@ import { fmtCompact, fmtRate } from "@/lib/format";
 import { Card, EmptyDatabase, Notice, PageHeader } from "@/components/ui";
 import { FilterBar, UrlTabs } from "@/components/filters";
 import { PostsTable } from "@/components/PostsTable";
+import { requestAccountKey } from "@/lib/request-account";
+import { enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
 export default async function PostsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  enterAccount(await requestAccountKey());
   const ds = getDataset();
   if (ds.empty) return <EmptyDatabase />;
   // Only original posts are listed here (owner's choice); replies, reposts and articles stay reachable by URL.

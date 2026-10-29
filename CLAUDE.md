@@ -12,7 +12,7 @@ The owner talks to Claude in Ukrainian. Code, comments and commit messages stay 
 | `npm run build` | Production build |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Self-test (`scripts/selftest.ts`): mock X server + temp DB, no credits, never touches `data/analytics.db` |
-| `npm run sync` | Incremental sync, last 45 days (`-- --days=N` to change) |
+| `npm run sync` | Incremental sync, last 45 days, every account (`-- --days=N`, `-- --account=secondhandle`) |
 | `npm run sync:full` | Whole timeline (X serves up to ~3,200 most recent posts) |
 | `npm run sync:auto` | Run every 5 min by the scheduler: syncs the last 2 days only when a post is exactly 1h / 6h / 24h old (+/- 2.5 min) or 15 min passed since the last sync |
 | `npm run sync:fresh` | Sync posts from the last 2 days, now |
@@ -37,6 +37,14 @@ Run `npm run typecheck && npm test` after any change to `src/lib` or `scripts`.
 - **Wording.** Say "low distribution relative to baseline". Never claim "X suppressed this post" or explain why the algorithm did something.
 - **Private metrics expire.** `non_public_metrics`, `organic_metrics` and video quartiles exist only for posts under ~30 days old. API errors for older posts and for retweets on those fields are expected and non-fatal.
 - **Not offered by the API at all:** watch time, followers gained per post, media engagements / detail expands. `link_clicks` exists only for posts with a clickable link or card.
+
+## Accounts (since 2026-10-29)
+
+- `src/lib/accounts.ts`: `main` = the X API account (data/analytics.db or `ANALYTICS_DB`); extra accounts from `TWITTERAPI_ACCOUNTS` (handles, e.g. a second account of the owner), each with `data/analytics-<key>.db`, read through **twitterapi.io** (owner's choice: no X keys for them; public metrics only). One database per account, so every analysis is unchanged and per account; never mix accounts in one number.
+- The current account is an AsyncLocalStorage scope: `getDb()` / `dbPath()` follow `currentAccount()`. **Every page, layout and route handler must start with `enterAccount(await requestAccountKey())` (`src/lib/request-account.ts`, cookie `xa_account`) before touching data** - in its own function: an ALS scope entered inside a helper does not flow back to the caller after `await`; scripts and MCP tools use `withAccount(key, fn)`. Code outside a scope works on `main`.
+- Sync: `syncAccount` (`src/lib/x/run.ts`) picks `runSync` (X API) or `runTwitterApiSync` (`src/lib/x/twitterapi-sync.ts`). twitterapi.io bills every re-read, so incremental = one `from:<handle> since_time:` search + refresh of the window's stored originals by id (50 per request); full = `last_tweets` with replies. Same `writePosts` / `postProcess` / capabilities as the X sync; private metrics stay null.
+- `auto-sync`, `sync`, `backup`, `classify`, `db:migrate` loop over all accounts; one account's failure does not stop the others. `audit:x` and `import:legacy` are main only. Comments run per account.
+- UI: the sidebar footer is the account switcher (`AccountSwitcher` in Sidebar.tsx, POST `/api/account`). MCP: every tool gets an optional `account` arg (wrapper in `createMcpServer`), INSTRUCTIONS list the accounts.
 
 ## Production server (since 2026-10-07)
 
@@ -91,6 +99,7 @@ Next.js 16 App Router, React 19, TypeScript 5.9 (strict), Tailwind 3 (colors as 
 
 ```
 src/lib/env.ts          .env loader for scripts, credentials, redact()
+src/lib/accounts.ts     account list, per-account database, current-account scope; request-account.ts (cookie)
 src/lib/db.ts           SQLite schema, migrations (append new ones, never edit applied ones)
 src/lib/x/              client.ts (OAuth 1.0a, retries, rate limits), map.ts (payload -> row), sync.ts
 src/lib/metrics.ts      per-post rates; stats.ts null-safe stats helpers

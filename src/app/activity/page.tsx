@@ -5,6 +5,8 @@ import { longDate } from "@/lib/time";
 import { fmtInt } from "@/lib/format";
 import { Card, EmptyDatabase, PageHeader, StatCard } from "@/components/ui";
 import { Heatmap } from "@/components/Heatmap";
+import { requestAccountKey } from "@/lib/request-account";
+import { enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,7 @@ const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "â€
 const hourLabel = (h: number) => `${String(h).padStart(2, "0")}:00-${String((h + 1) % 24).padStart(2, "0")}:00`;
 
 export default async function ActivityPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  enterAccount(await requestAccountKey());
   const ds = getDataset();
   if (ds.empty) return <EmptyDatabase />;
   const now = new Date();

@@ -10,7 +10,10 @@ import { dataWarnings } from "../warnings";
 import { pctChange } from "../stats";
 import { slim } from "../slim";
 import { MIN_SAMPLE, type GroupRow, type Post, type Summary } from "../analytics/types";
-import { runSync, DEFAULT_WINDOW_DAYS } from "../x/sync";
+import { DEFAULT_WINDOW_DAYS } from "../x/sync";
+import { syncAccount } from "../x/run";
+import { accounts, withAccount, MAIN_ACCOUNT } from "../accounts";
+import { getMeta } from "../db";
 import { XApiError } from "../x/client";
 import { commentCounts, commentsStatus, listComments, styleSamples } from "../comments/data";
 
@@ -20,7 +23,7 @@ import { commentCounts, commentsStatus, listComments, styleSamples } from "../co
  * Keep the tool set in step with the dashboard: when a page or metric changes significantly,
  * update the matching tool here (see CLAUDE.md "MCP server").
  */
-export const MCP_VERSION = "3.4.0";
+export const MCP_VERSION = "4.0.0";
 
 const INSTRUCTIONS = `Personal X (Twitter) analytics for one account, read from the local dashboard database.
 Rules for interpreting the data:
@@ -107,14 +110,30 @@ function bestWorst(posts: Post[]) {
 
 export interface McpOptions {
   /** Replaceable for tests. */
-  sync?: typeof runSync;
+  sync?: typeof syncAccount;
   now?: () => Date;
 }
 
 export function createMcpServer(opts: McpOptions = {}): McpServer {
-  const sync = opts.sync ?? runSync;
+  const sync = opts.sync ?? syncAccount;
   const now = opts.now ?? (() => new Date());
-  const server = new McpServer({ name: "x-analytics", version: MCP_VERSION }, { instructions: INSTRUCTIONS });
+  // Every tool takes an optional `account` and runs against that account's own database.
+  const known = accounts().map((a) => {
+    const handle = withAccount(a.key, () => { try { return getMeta("account_username"); } catch { return null; } }) ?? a.username;
+    return { key: a.key, handle, source: a.source };
+  });
+  const accountList = known.map((a) => `"${a.key}"${a.handle ? ` = @${a.handle}` : ""} (${a.source === "x" ? "X API: all metrics" : "twitterapi.io: public metrics only - profile visits, link clicks and video retention are always null"})`).join("; ");
+  const server = new McpServer({ name: "x-analytics", version: MCP_VERSION }, {
+    instructions: `${INSTRUCTIONS}\n- Accounts: ${accountList}. Every tool takes an optional "account" (default "${MAIN_ACCOUNT}"); each account's data is separate - never mix numbers across accounts.`,
+  });
+  const accountArg = z.enum(known.map((a) => a.key) as [string, ...string[]]).optional()
+    .describe(`Which account: ${known.map((a) => `"${a.key}"${a.handle ? ` (@${a.handle})` : ""}`).join(", ")}. Default "${MAIN_ACCOUNT}".`);
+  type Handler = (args: Record<string, unknown>, extra: unknown) => unknown;
+  type Register = (name: string, config: { inputSchema?: Record<string, unknown> }, cb: Handler) => unknown;
+  const register = server.registerTool.bind(server) as unknown as Register;
+  (server as unknown as { registerTool: Register }).registerTool = (name, config, cb) =>
+    register(name, { ...config, inputSchema: { ...(config.inputSchema ?? {}), account: accountArg } },
+      (args, extra) => withAccount(typeof args?.account === "string" ? args.account : MAIN_ACCOUNT, () => cb(args, extra)));
   const ds = (): Dataset => getDataset();
   const read = { readOnlyHint: true, openWorldHint: false } as const;
   let syncing = false;

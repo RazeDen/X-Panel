@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
 
 /* Outline icons drawn on a 24px grid, rendered at 16px like the Developer Console nav. */
@@ -22,10 +22,85 @@ const GROUPS: { label: string | null; items: { href: string; label: string }[] }
   { label: "System", items: [{ href: "/data", label: "Data & methods" }] },
 ];
 
-export function Sidebar({ account, name, avatar, lastSync, status, issues, comments = 0 }: {
+export interface AccountChoice { key: string; username: string | null; name: string | null; avatar: string | null }
+
+function Avatar({ src, label, size = 24 }: { src: string | null; label: string; size?: number }) {
+  return src
+    // eslint-disable-next-line @next/next/no-img-element
+    ? <img src={src} alt="" width={size} height={size} className="shrink-0 rounded-full" style={{ width: size, height: size }} />
+    : <div aria-hidden className="flex shrink-0 items-center justify-center rounded-full bg-raised text-[11px] font-semibold text-ink" style={{ width: size, height: size }}>{label.charAt(0).toUpperCase()}</div>;
+}
+
+/**
+ * Sidebar footer: the current account; with more than one account it opens a menu to switch (saved in a
+ * cookie by /api/account). A post page belongs to one account, so switching there goes back to the list.
+ */
+function AccountSwitcher({ current, choices, statusDot }: { current: AccountChoice; choices: AccountChoice[]; statusDot: ReactNode }) {
+  const router = useRouter();
+  const path = usePathname();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
+  }, [open]);
+  const label = (c: AccountChoice) => c.name ?? (c.username ? `@${c.username}` : "Main account");
+  async function pick(key: string) {
+    setOpen(false);
+    if (key === current.key) return;
+    setBusy(true);
+    try {
+      await fetch("/api/account", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key }) });
+      if (/^\/posts\/[^/]+/.test(path)) router.push("/posts");
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+  const multi = choices.length > 1;
+  return (
+    <div ref={ref} className="relative border-t border-line">
+      {open && (
+        <div role="menu" className="absolute inset-x-2 bottom-full mb-2 rounded-[10px] border border-line bg-surface p-1 shadow-[0_8px_24px_-8px_#000000e6]">
+          <div className="px-2.5 pb-1 pt-1.5 text-[12px] text-muted">Accounts</div>
+          {choices.map((c) => (
+            <button key={c.key} type="button" role="menuitemradio" aria-checked={c.key === current.key} onClick={() => void pick(c.key)}
+              className="flex h-10 w-full items-center gap-2.5 rounded-control px-2.5 text-left transition-colors hover:bg-white/5">
+              <Avatar src={c.avatar} label={label(c)} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] text-ink">{label(c)}</span>
+                {c.username && <span className="block truncate text-[11px] leading-3 text-muted">@{c.username}</span>}
+              </span>
+              {c.key === current.key && <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-ink" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m5 12 5 5 9-10" /></svg>}
+            </button>
+          ))}
+        </div>
+      )}
+      <button type="button" disabled={!multi || busy} onClick={() => setOpen((v) => !v)} aria-haspopup={multi ? "menu" : undefined} aria-expanded={multi ? open : undefined}
+        title={multi ? "Switch account" : undefined}
+        className={`hatch flex w-full items-center gap-2.5 px-5 py-3.5 text-left ${multi ? "transition-colors hover:bg-white/5" : "cursor-default"}`}>
+        <Avatar src={current.avatar} label={label(current)} />
+        <div className={`min-w-0 flex-1 truncate text-[13.5px] text-ink ${busy ? "opacity-50" : ""}`} title={current.username ? `@${current.username}` : undefined}>{label(current)}</div>
+        {multi && <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-muted" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m8 9 4-4 4 4M8 15l4 4 4-4" /></svg>}
+        {statusDot}
+      </button>
+    </div>
+  );
+}
+
+export function Sidebar({ account, name, avatar, lastSync, status, issues, comments = 0, accountKey = "main", choices = [] }: {
   account: string | null; name: string | null; avatar: string | null; lastSync: string | null; status: "ok" | "error" | "none"; issues: number;
   /** Comments waiting for an answer. */
   comments?: number;
+  /** The selected account and every account that can be picked. */
+  accountKey?: string;
+  choices?: AccountChoice[];
 }) {
   const path = usePathname();
   const statusLabel = `${status === "ok" ? "Last sync ok" : status === "error" ? "Last sync failed" : "Never synced"}${lastSync ? ` · ${lastSync}` : ""}`;
@@ -57,15 +132,10 @@ export function Sidebar({ account, name, avatar, lastSync, status, issues, comme
           </div>
         ))}
       </nav>
-      <div className="hatch flex items-center gap-2.5 border-t border-line px-5 py-3.5">
-        {avatar
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={avatar} alt="" width={24} height={24} className="h-6 w-6 shrink-0 rounded-full" />
-          : <div aria-hidden className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-raised text-[11px] font-semibold text-ink">{(name ?? account ?? "?").charAt(0).toUpperCase()}</div>}
-        <div className="min-w-0 flex-1 truncate text-[13.5px] text-ink" title={account ? `@${account}` : undefined}>{name ?? (account ? `@${account}` : "No account")}</div>
-        <span role="img" aria-label={statusLabel} title={statusLabel}
-          className={`h-2 w-2 shrink-0 rounded-full ${status === "ok" ? "bg-good" : status === "error" ? "bg-bad" : "bg-muted"}`} />
-      </div>
+      <AccountSwitcher
+        current={{ key: accountKey, username: account, name, avatar }}
+        choices={choices.length ? choices : [{ key: accountKey, username: account, name, avatar }]}
+        statusDot={<span role="img" aria-label={statusLabel} title={statusLabel} className={`h-2 w-2 shrink-0 rounded-full ${status === "ok" ? "bg-good" : status === "error" ? "bg-bad" : "bg-muted"}`} />} />
     </aside>
   );
 }
