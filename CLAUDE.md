@@ -48,7 +48,7 @@ Run `npm run typecheck && npm test` after any change to `src/lib` or `scripts`.
 
 ## Production server (since 2026-10-07)
 
-The live installation runs on the owner's Ubuntu 24.04 VPS (`root@<server-ip>`, Tailscale name `x-panel`); the PC copy is for reference/dev only and its database is no longer synced.
+The live installation runs on the owner's Ubuntu 24.04 VPS (`root@<server-ip>`; the real host and the second account's handle are in the gitignored `CLAUDE.local.md` on the server - never commit them, the repository is public, Tailscale name `x-panel`); the PC copy is for reference/dev only and its database is no longer synced.
 - Code: `/opt/x-panel/app` (git checkout, owned by system user `xpanel`, home `/opt/x-panel`). `.env` there is mode 600.
 - Services (`deploy/`): `x-panel-web.service` (next start on 127.0.0.1:3000), `x-panel-auto-sync.timer` (5 min), `x-panel-daily-sync.timer` (08:00 Europe/Warsaw), `x-panel-backup.timer` (03:30, 14 dated copies). Logs: `journalctl -u x-panel-*`.
 - Access: `tailscale serve --http 80` -> `http://x-panel` from the owner's tailnet only. Never open port 3000 or the dashboard on the public IP: it has no login and a paid Sync button.
