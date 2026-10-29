@@ -78,7 +78,7 @@ export function RefreshComments() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Failed");
       setState("idle");
-      setMsg(`${j.inserted} new`);
+      setMsg(`${j.inserted} new${j.answered ? `, ${j.answered} answered` : ""}`);
       router.refresh();
     } catch (e) {
       setState("error");
@@ -88,7 +88,7 @@ export function RefreshComments() {
   return (
     <span className="flex items-center gap-2">
       {msg && <span className={`text-xs ${state === "error" ? "text-bad" : "text-muted"}`} role="status">{msg}</span>}
-      <button type="button" className="btn" disabled={state === "busy"} onClick={() => void run()} title="Read new comments now (about $0.00015 per request). They are also checked automatically.">
+      <button type="button" className="btn" disabled={state === "busy"} onClick={() => void run()} title="Read new comments and your latest replies now, so answered ones leave the list (about $0.00015 per request). Comments are also checked automatically.">
         {state === "busy" ? "Checking…" : "Check now"}
       </button>
     </span>

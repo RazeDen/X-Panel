@@ -256,7 +256,7 @@ async function main() {
   await client.close();
 
   console.log("Comments (twitterapi.io mock)");
-  const { commentsDue, syncComments, stripReplyMentions } = await import("../src/lib/comments/sync");
+  const { commentsDue, syncComments, stripReplyMentions, checkOwnReplies } = await import("../src/lib/comments/sync");
   const { listComments, setCommentHidden, draftMessage, commentCounts } = await import("../src/lib/comments/data");
   delete process.env.TWITTERAPI_IO_KEY;
   check("no comment requests without a key", commentsDue().due === false);
@@ -270,7 +270,15 @@ async function main() {
   const twServer = http.createServer((req, res) => {
     mentionCalls++;
     keyHeader = String(req.headers["x-api-key"] ?? "");
-    const ok = new URL(req.url ?? "/", "http://x").pathname === "/twitter/user/mentions";
+    const path = new URL(req.url ?? "/", "http://x").pathname;
+    if (path === "/twitter/tweet/advanced_search") {
+      // The owner's latest tweets: a reply to comment 901, an original post and a reply to someone else.
+      const own = (id: string, extra: Record<string, unknown>) => ({ id, text: `@user7 own ${id}`, url: `https://x.com/tester/status/${id}`, createdAt: new Date().toUTCString(), author: { id: "1", userName: "tester" }, ...extra });
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ status: "success", has_next_page: false, tweets: [own("962", { inReplyToId: "777" }), own("961", {}), own("960", { isReply: true, inReplyToId: "901" })] }));
+      return;
+    }
+    const ok = path === "/twitter/user/mentions";
     res.writeHead(ok ? 200 : 404, { "content-type": "application/json" });
     res.end(JSON.stringify(ok ? { status: "success", has_next_page: false, next_cursor: "", tweets: [
       tw("901", "7"),                                                     // a real comment on post 101
@@ -293,10 +301,15 @@ async function main() {
   check("draft text has the post and the comment", msg.startsWith("Post:\npost 101") && msg.includes("Comment by @user7:\ncomment 901"));
   check("unanswered comments expire after 30 hours", commentCounts(new Date(Date.now() + 30 * 3600000)).open === 0 && commentCounts(new Date(Date.now() + 30 * 3600000)).expired === 1 && commentCounts().open === 1);
   check("hide and restore a comment", setCommentHidden("901", true) && commentCounts().hidden === 1 && commentCounts().open === 0 && setCommentHidden("901", false) && commentCounts().open === 1);
+  const rc = await checkOwnReplies();
+  check("Check now finds the owner's reply and the comment leaves the list", rc.requests === 1 && rc.answered === 1 && commentCounts().open === 0
+    && listComments("answered")[0]?.myReply?.url === "https://x.com/tester/status/960");
+  db.prepare("UPDATE comments SET my_reply_id = NULL, my_reply_text = NULL, my_reply_url = NULL").run();
   const now2 = new Date().toISOString();
   db.prepare("INSERT INTO posts (x_id, url, text, created_at, first_seen_at, last_synced_at, kind, referenced_id) VALUES ('950', 'https://x.com/tester/status/950', '@user7 with Claude', ?, ?, ?, 'reply', '901')").run(now2, now2, now2);
   const answered = listComments("answered");
   check("own reply marks the comment answered", answered.length === 1 && answered[0].myReply?.text === "with Claude" && commentCounts().open === 0);
+  check("no reply check request when nothing is open", (await checkOwnReplies()).requests === 0);
   process.env.TWITTERAPI_IO_BASE = "http://127.0.0.1:9";
   setMetaForTest("comments_last_fetch", null);
   let failedCheck = false;

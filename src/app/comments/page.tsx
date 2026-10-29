@@ -68,7 +68,7 @@ export default async function CommentsPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <PageHeader title="Comments"
-        subtitle={`Replies to your posts from the last ${COMMENT_MAX_AGE_HOURS} hours that you have not answered yet. "Draft in Claude" copies the post and the comment for your Claude chat; reply on X - an answered comment leaves this list by itself within about 15 minutes.`}
+        subtitle={`Replies to your posts from the last ${COMMENT_MAX_AGE_HOURS} hours that you have not answered yet. "Draft in Claude" copies the post and the comment for your Claude chat; reply on X - an answered comment leaves this list on "Check now", or by itself within about 15 minutes.`}
         tabs={<UrlTabs param="show" fallback="open" variant="underline" options={[
           { key: "open", label: `To answer · ${counts.open}` },
           { key: "answered", label: `Answered · ${counts.answered}` },

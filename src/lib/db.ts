@@ -220,6 +220,17 @@ CREATE INDEX comments_created ON comments (created_at);
 CREATE INDEX comments_reply_to ON comments (in_reply_to_id);
 `,
   },
+  {
+    id: 5,
+    name: "comment answers from the reply check",
+    sql: `
+-- The owner's answer found by "Check now" (a twitterapi.io search of the owner's recent replies), so an
+-- answered comment leaves the list without waiting for the next post sync. An own reply in posts counts too.
+ALTER TABLE comments ADD COLUMN my_reply_id TEXT;
+ALTER TABLE comments ADD COLUMN my_reply_text TEXT;
+ALTER TABLE comments ADD COLUMN my_reply_url TEXT;
+`,
+  },
 ];
 
 type DB = Database.Database;
@@ -365,6 +376,9 @@ export interface CommentRow {
   like_count: number | null;
   reply_count: number | null;
   hidden_at: string | null;
+  my_reply_id: string | null;
+  my_reply_text: string | null;
+  my_reply_url: string | null;
 }
 
 export interface SnapshotRow extends MetricValues {

@@ -1,18 +1,18 @@
 import { getDb, getMeta, type CommentRow } from "../db";
 import { preview } from "../format";
 import { formatDateTime } from "../time";
-import { stripReplyMentions } from "./sync";
+import { COMMENT_MAX_AGE_HOURS, stripReplyMentions } from "./sync";
 
 /**
  * Comments as the Comments page and the MCP tool show them. Status is derived, never stored:
- *  - answered: the owner's own reply to the comment is in posts (kind = 'reply', referenced_id = comment id);
+ *  - answered: the owner's own reply to the comment is in posts (kind = 'reply', referenced_id = comment id)
+ *    or was found by the reply check of "Check now" (comments.my_reply_*);
  *  - hidden: the owner hid it (spam);
  *  - expired: not answered and older than COMMENT_MAX_AGE_HOURS - no longer worth answering (owner's choice), not shown;
  *  - open: everything else - the ones still waiting for an answer.
  */
 export type CommentStatus = "open" | "answered" | "hidden" | "expired";
-/** Unanswered comments older than this leave the To answer list (owner's request 2026-10-29). */
-export const COMMENT_MAX_AGE_HOURS = 30;
+export { COMMENT_MAX_AGE_HOURS };
 
 export interface CommentPost {
   id: number;
@@ -56,7 +56,8 @@ export function listComments(status?: CommentStatus, now: Date = new Date()): Co
   };
   const out: CommentView[] = [];
   for (const c of rows) {
-    const mine = reply.get(c.id) as { text: string; url: string } | undefined;
+    const mine = (reply.get(c.id) as { text: string; url: string } | undefined)
+      ?? (c.my_reply_id ? { text: c.my_reply_text ?? "", url: c.my_reply_url ?? `https://x.com/i/status/${c.my_reply_id}` } : undefined);
     const s: CommentStatus = c.hidden_at ? "hidden" : mine ? "answered" : c.created_at < cutoff ? "expired" : "open";
     if (status && s !== status) continue;
     const parent = lite(c.in_reply_to_id);
