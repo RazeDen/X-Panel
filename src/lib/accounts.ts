@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import path from "node:path";
+import { SERIES_BY_SCHEME, SERIES_HELP, type SeriesScheme } from "./classify/rules";
 
 /**
  * Accounts tracked by the dashboard. Each has its own SQLite file, so every analysis keeps working on
@@ -17,8 +18,12 @@ export interface Account {
   /** Handle from the config; for the main account it is only known from its database (meta). */
   username: string | null;
   dbFile: string;
+  /** Which set of formats (series) the account uses; see SERIES_BY_SCHEME. */
+  seriesScheme: SeriesScheme;
 }
 export const MAIN_ACCOUNT = "main";
+/** Extra accounts with their own formats (by key); the rest use the main account's. */
+const SERIES_SCHEMES: Record<string, SeriesScheme> = { raytar: "lectures" };
 
 export function mainDbFile(): string {
   return path.resolve(/*turbopackIgnore: true*/ process.cwd(), process.env.ANALYTICS_DB || "data/analytics.db");
@@ -26,13 +31,13 @@ export function mainDbFile(): string {
 
 export function accounts(): Account[] {
   const main = mainDbFile();
-  const list: Account[] = [{ key: MAIN_ACCOUNT, source: "x", username: null, dbFile: main }];
+  const list: Account[] = [{ key: MAIN_ACCOUNT, source: "x", username: null, dbFile: main, seriesScheme: "scenes" }];
   for (const raw of (process.env.TWITTERAPI_ACCOUNTS ?? "").split(",")) {
     const handle = raw.trim().replace(/^@/, "");
     if (!/^\w{1,15}$/.test(handle)) continue;
     const key = handle.toLowerCase();
     if (key === MAIN_ACCOUNT || list.some((a) => a.key === key)) continue;
-    list.push({ key, source: "twitterapi", username: handle, dbFile: path.join(path.dirname(main), `analytics-${key}.db`) });
+    list.push({ key, source: "twitterapi", username: handle, dbFile: path.join(path.dirname(main), `analytics-${key}.db`), seriesScheme: SERIES_SCHEMES[key] ?? "scenes" });
   }
   return list;
 }
@@ -48,6 +53,16 @@ const scope = (g.__xaAccountScope ??= new AsyncLocalStorage<string>());
 /** The account the current call works on (main when nothing was selected). */
 export function currentAccount(): Account {
   return findAccount(scope.getStore()) ?? accounts()[0];
+}
+
+/** The current account's formats (series values), in display order. */
+export function currentSeries(): readonly string[] {
+  return SERIES_BY_SCHEME[currentAccount().seriesScheme];
+}
+
+/** The current account's formats in one line, for page subtitles and help texts. */
+export function currentSeriesHelp(): string {
+  return SERIES_HELP[currentAccount().seriesScheme];
 }
 
 /** Runs fn with `key` as the current account (unknown keys fall back to main). */

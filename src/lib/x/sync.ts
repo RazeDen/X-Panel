@@ -1,6 +1,7 @@
 import { getDb, getMeta, setMeta, METRIC_KEYS, type MetricValues, type PostRow } from "../db";
 import { computeRates } from "../metrics";
 import { deriveFormat, deriveSeries } from "../classify/rules";
+import { currentAccount } from "../accounts";
 import { refreshCapabilities } from "../capabilities";
 import { redact } from "../env";
 import { XClient, XApiError } from "./client";
@@ -253,6 +254,7 @@ export function postProcess(): void {
     const rows = db.prepare("SELECT * FROM posts").all() as PostRow[];
     const setFormat = db.prepare("UPDATE posts SET format = ?, format_source = 'rule' WHERE id = ?");
     const setSeries = db.prepare("UPDATE posts SET series = ?, series_source = 'rule' WHERE id = ?");
+    const scheme = currentAccount().seriesScheme;
     for (const p of rows) {
       if (p.format_source !== "manual") {
         const format = deriveFormat({
@@ -264,7 +266,7 @@ export function postProcess(): void {
         if (format !== p.format || p.format_source !== "rule") setFormat.run(format, p.id);
       }
       if (p.kind !== "repost" && p.series_source !== "manual") {
-        const series = deriveSeries(p.text, safeArray(p.media_types));
+        const series = deriveSeries(p.text, safeArray(p.media_types), { scheme, videoMs: p.video_duration_ms });
         if (series !== p.series || p.series_source !== "rule") setSeries.run(series, p.id);
       }
     }

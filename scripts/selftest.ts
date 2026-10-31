@@ -83,6 +83,13 @@ async function main() {
   check("series rules", deriveSeries("ANTHROPIC DESIGNER LEAKED A 6-RULE FILE THAT TURNS OPUS 5.5 INTO AN ART DIRECTOR", ["video"]) === "Animated file"
     && deriveSeries("CLAUDE ANIMATED JEV SORTING 3,412 LEADS IN 15.7 SECONDS - 1,440 FRAMES, 1 HTML FILE", ["video"]) === "Animated scene"
     && deriveSeries("ANTHROPIC ENGINEER LEAKED A FILE WHERE OPUS 5.5 BUILDS A 20-SECOND ANIMATION", ["photo"]) === "Other");
+  check("lecture format scheme: long video = Lectures, short file post, no scenes",
+    deriveSeries("Stanford just dropped a free 2-hour course on agents", ["video"], { scheme: "lectures", videoMs: 2 * 3600000 }) === "Lectures"
+    && deriveSeries("The creator of Claude Code shows the prompt file he uses", ["video"], { scheme: "lectures", videoMs: 22 * 60000 }) === "Lectures"
+    && deriveSeries("ANTHROPIC ENGINEER LEAKED THE FILE HE USES INSTEAD OF PROMPTS", ["video"], { scheme: "lectures", videoMs: 20000 }) === "Animated file"
+    && deriveSeries("CLAUDE ANIMATED JEV SORTING 3,412 LEADS", ["video"], { scheme: "lectures", videoMs: 25000 }) === "Other"
+    && deriveSeries("a 2-hour lecture", ["photo"], { scheme: "lectures", videoMs: null }) === "Other"
+    && deriveSeries("CLAUDE ANIMATED JEV SORTING 3,412 LEADS", ["video"], { videoMs: 2 * 3600000 }) === "Animated scene");
   check("format rules", deriveFormat({ article: false, isThreadRoot: false, mediaTypes: ["video"], hasLink: false }) === "Video" && deriveFormat({ article: true, isThreadRoot: false, mediaTypes: [], hasLink: false }) === "Article" && deriveFormat({ article: false, isThreadRoot: false, mediaTypes: [], hasLink: false }) === "Text");
 
   console.log("Empty database");
@@ -331,6 +338,10 @@ async function main() {
   const { getMeta } = await import("../src/lib/db");
   process.env.TWITTERAPI_ACCOUNTS = "Testtwo, bad handle!, @tester2";
   check("extra accounts come from TWITTERAPI_ACCOUNTS", JSON.stringify(accounts().map((a) => `${a.key}:${a.source}`)) === JSON.stringify(["main:x", "testtwo:twitterapi", "tester2:twitterapi"]));
+  process.env.TWITTERAPI_ACCOUNTS = "Raytar";
+  const lecturesScheme = accounts().find((a) => a.key === "raytar")?.seriesScheme;
+  process.env.TWITTERAPI_ACCOUNTS = "Testtwo, bad handle!, @tester2";
+  check("formats per account: Raytar uses Animated file / Lectures / Other, the rest the main set", lecturesScheme === "lectures" && accounts().every((a) => a.seriesScheme === "scenes"));
   const mainPosts = (db.prepare("SELECT COUNT(*) AS n FROM posts").get() as { n: number }).n;
   const ago = (h: number) => new Date(Date.now() - h * 3600000).toUTCString();
   const T2 = { id: "200", userName: "Testtwo", name: "Test Two", profilePicture: "https://pbs.twimg.com/t2.jpg" };

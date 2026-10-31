@@ -4,7 +4,7 @@ import { accounts, withAccount } from "../src/lib/accounts";
 import { postProcess } from "../src/lib/x/sync";
 
 /**
- * npm run classify - re-applies the automatic format (series: Animated file / Animated scene / Other)
+ * npm run classify - re-applies the automatic format (series, per account: see SERIES_BY_SCHEME)
  * and media type to every post. Manual formats are never touched. Topic, content type and hook
  * tagging (rule-based and AI) were removed at the owner's request on 2026-10-07.
  */

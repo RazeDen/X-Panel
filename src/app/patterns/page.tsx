@@ -8,7 +8,7 @@ import { Card, EmptyDatabase, Notice, PageHeader } from "@/components/ui";
 import { FilterBar } from "@/components/filters";
 import { HBars, type HBarRow } from "@/components/HBars";
 import { requestAccountKey } from "@/lib/request-account";
-import { enterAccount } from "@/lib/accounts";
+import { currentSeries, enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +30,7 @@ export default async function PatternsPage({ searchParams }: { searchParams: Pro
   const overall = summarize(posts);
   const q = (extra: Record<string, string>) => `/posts${toQuery({ range: f.range, ...extra })}`;
   const g = (fn: (p: Post) => string | null, order?: string[]) => groupPosts(posts, fn, order);
-  const format = g((p) => p.series, ["Animated file", "Animated scene", "Other"]);
+  const format = g((p) => p.series, [...currentSeries()]);
   const bucket = g((p) => p.bucket, TIME_BUCKETS.map((b) => b.label)), dow = g((p) => p.dowName, DOW_NAMES);
 
   const imp = (r: GroupRow) => r.medianImpressions;

@@ -4,7 +4,7 @@ import { getDataset, getSnapshotPoints, getSnapshots, type Dataset } from "../da
 import { applyFilters, dateWindow, inWindow, parseFilters, previousWindow, type Filters } from "../filters";
 import { summarize, groupPosts, dimensionValue } from "../analytics/summary";
 import { ageLabel, milestones, recentCard, statusOf } from "../analytics/growth";
-import { SERIES } from "../classify/rules";
+import { ALL_SERIES, SERIES_BY_SCHEME, SERIES_HELP } from "../classify/rules";
 import { activityPeriods, buildActivity, currentStreak } from "../analytics/activity";
 import { dataWarnings } from "../warnings";
 import { pctChange } from "../stats";
@@ -23,7 +23,7 @@ import { commentCounts, commentsStatus, listComments, styleSamples } from "../co
  * Keep the tool set in step with the dashboard: when a page or metric changes significantly,
  * update the matching tool here (see CLAUDE.md "MCP server").
  */
-export const MCP_VERSION = "4.0.0";
+export const MCP_VERSION = "4.1.0";
 
 const INSTRUCTIONS = `Personal X (Twitter) analytics for one account, read from the local dashboard database.
 Rules for interpreting the data:
@@ -33,7 +33,7 @@ Rules for interpreting the data:
 - null means the metric is unavailable from the X API (e.g. private metrics for posts older than ~30 days). It is never zero - do not treat it as 0.
 - Prefer medians over averages; always mention the sample size n. Groups with n < ${MIN_SAMPLE} are low sample - do not draw conclusions from them.
 - Posts under 48h old ("maturing") are still accumulating; comparisons understate them.
-- "series" is the owner's content line - the dashboard and the owner call it "Format" (when the owner says "format" they mean this, not the media type, which is almost always video): "Animated file" (an animated post built around a file, config, prompt or rule set), "Animated scene" (an animation where something happens) or "Other". It is auto-detected from the headline and corrected by hand, so treat it as a label, not ground truth.
+- "series" is the owner's content line - the dashboard and the owner call it "Format" (when the owner says "format" they mean this, not the media type, which is almost always video): each account has its own set of formats (listed per account under "Accounts" below). It is auto-detected (from the headline, and for "Lectures" from the video length) and corrected by hand, so treat it as a label, not ground truth.
 - Early numbers (impressions at 1h / 6h / 24h, same-age rank) exist only where a sync ran near that age; "estimated" values are interpolated between two nearby snapshots. Missing early numbers mean "not captured", not zero.
 - "rank" is the post's rank by impressions among all original posts (1 = most).
 - Describe reach as "low/high distribution relative to baseline". Never claim X suppressed or boosted a post, and do not invent reasons for the algorithm's behaviour. Correlation is not causation.
@@ -56,7 +56,7 @@ const filterShape = {
   week: z.string().regex(/^\d{4}-W\d{2}$/).optional().describe("ISO week, e.g. 2026-W40"),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Start date YYYY-MM-DD (Europe/Warsaw)"),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("End date YYYY-MM-DD (Europe/Warsaw)"),
-  series: z.enum(SERIES).optional().describe("The owner's content line"),
+  series: z.enum(ALL_SERIES).optional().describe("The owner's content line (Format); the values depend on the account"),
   format: z.string().optional().describe("Media type (Video, Image, Text ...). Almost every post is a video; the owner's \"format\" is `series`."),
   min_impressions: z.number().int().positive().optional(),
   query: z.string().optional().describe("Case-insensitive text search in the post text"),
@@ -120,9 +120,9 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
   // Every tool takes an optional `account` and runs against that account's own database.
   const known = accounts().map((a) => {
     const handle = withAccount(a.key, () => { try { return getMeta("account_username"); } catch { return null; } }) ?? a.username;
-    return { key: a.key, handle, source: a.source };
+    return { key: a.key, handle, source: a.source, scheme: a.seriesScheme };
   });
-  const accountList = known.map((a) => `"${a.key}"${a.handle ? ` = @${a.handle}` : ""} (${a.source === "x" ? "X API: all metrics" : "twitterapi.io: public metrics only - profile visits, link clicks and video retention are always null"})`).join("; ");
+  const accountList = known.map((a) => `"${a.key}"${a.handle ? ` = @${a.handle}` : ""} (${a.source === "x" ? "X API: all metrics" : "twitterapi.io: public metrics only - profile visits, link clicks and video retention are always null"}; formats: ${SERIES_HELP[a.scheme]} - values ${SERIES_BY_SCHEME[a.scheme].map((s) => `"${s}"`).join(", ")})`).join("; ");
   const server = new McpServer({ name: "x-analytics", version: MCP_VERSION }, {
     instructions: `${INSTRUCTIONS}\n- Accounts: ${accountList}. Every tool takes an optional "account" (default "${MAIN_ACCOUNT}"); each account's data is separate - never mix numbers across accounts.`,
   });
@@ -255,7 +255,7 @@ export function createMcpServer(opts: McpOptions = {}): McpServer {
     title: "Performance by group",
     description: "Original posts grouped by format (series, the dashboard Content page) or media type or by posting time (time slot, weekday, hour - no longer a dashboard page, still available here): n, median and average impressions, median rates and median scores per group. Groups with lowSample=true have fewer than 3 posts.",
     inputSchema: {
-      dimension: z.enum(["series", "format", "bucket", "dow", "hour"]).describe("series = the owner's format (Animated file / Animated scene / Other), format = media type, bucket = 3-hour time slot, dow = day of week, hour = hour of day"),
+      dimension: z.enum(["series", "format", "bucket", "dow", "hour"]).describe("series = the owner's format (per account, e.g. Animated file / Animated scene / Other or Animated file / Lectures / Other), format = media type, bucket = 3-hour time slot, dow = day of week, hour = hour of day"),
       ...filterShape,
     },
     annotations: read,

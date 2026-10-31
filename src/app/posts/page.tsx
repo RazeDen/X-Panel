@@ -8,7 +8,7 @@ import { Card, EmptyDatabase, Notice, PageHeader } from "@/components/ui";
 import { FilterBar, UrlTabs } from "@/components/filters";
 import { PostsTable } from "@/components/PostsTable";
 import { requestAccountKey } from "@/lib/request-account";
-import { enterAccount } from "@/lib/accounts";
+import { currentSeries, enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +38,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
         options={{ series: tags.series }}
         count={`${rows.length} posts · median ${fmtCompact(s.medianImpressions)} impr. · median ER ${fmtRate(s.medianEngagementRate)}`} />
       <Card pad={false}>
-        <PostsTable hideable posts={rows.map((p) => {
+        <PostsTable hideable series={currentSeries()} posts={rows.map((p) => {
           const fh = impressionsAtAge(p.created_at, early.get(p.id) ?? [], 1);
           return { ...slim(p), firstHour: fh?.value ?? null, firstHourEstimated: fh?.estimated ?? false };
         })} />

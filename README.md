@@ -123,7 +123,7 @@ Three sources, stored per post:
 
 Format (Text, Image, Video, GIF, Article, Thread, Link, Mixed media) is derived from what the post contains, not from its wording. A post counts as a thread when it has two or more self-replies.
 
-**Series** is the account owner's content line, the main thing to compare: `Animated file` (an animated post built around a file, config, prompt or rule set) and `Animated scene` (an animation where something happens), everything else `Other`. It is detected from the headline of video / GIF posts (`deriveSeries` in `src/lib/classify/rules.ts`, reading only the first line up to the first " - "); a series you pick on a post page is kept and never overwritten. Edit the keyword lists there to fit your own series.
+**Series** is the account owner's content line, the main thing to compare: `Animated file` (an animated post built around a file, config, prompt or rule set) and `Animated scene` (an animation where something happens), everything else `Other`. It is detected from the headline of video / GIF posts (`deriveSeries` in `src/lib/classify/rules.ts`, reading only the first line up to the first " - "); a series you pick on a post page is kept and never overwritten. Edit the keyword lists there to fit your own series. Each account can have its own set (`seriesScheme` in `src/lib/accounts.ts`): the second account uses `Animated file` / `Lectures` / `Other`, where `Lectures` is any video of 5 minutes or more (talks, courses, workshops) and a shorter video with a file headline is `Animated file`. Pages, filters and Claude Desktop show each account's own set.
 
 
 

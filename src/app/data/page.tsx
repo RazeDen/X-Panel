@@ -9,7 +9,7 @@ import { MIN_SAMPLE, MATURITY_HOURS } from "@/lib/analytics/types";
 import { MIN_REFERENCE, REFERENCE_DAYS } from "@/lib/analytics/scoring";
 import { DEFAULT_WINDOW_DAYS } from "@/lib/x/sync";
 import { requestAccountKey } from "@/lib/request-account";
-import { enterAccount } from "@/lib/accounts";
+import { currentAccount, currentSeriesHelp, enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 const ORDER = ["impressions", "likes", "replies", "reposts", "quotes", "bookmarks", "profile_visits", "link_clicks", "video_views", "video_quartiles", "engagements_reported", "organic_impressions", "watch_time", "media_engagements", "followers_from_post", "promoted_metrics"];
@@ -111,7 +111,7 @@ export default async function DataPage() {
           <div><h3 className="mb-1 font-medium text-ink">Distribution score</h3><p>Percentile of a post&apos;s impressions among your posts from the {REFERENCE_DAYS} days before it (all other posts if fewer than {MIN_REFERENCE}). 50 is a typical post. It measures reach only.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Engagement quality score</h3><p>Mean percentile of the available per-impression rates (like, reply, repost, bookmark, profile visit), equally weighted, against the same reference set. Kept separate from reach so a strong post with weak distribution can be told apart from a weak post.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Outliers</h3><p>Robust z-score on log10(impressions) using the median and MAD of the reference set: 2 or more is above baseline, 3.5 or more far above, -2 or less below. Descriptive only - not a prediction and not an explanation.</p></div>
-          <div><h3 className="mb-1 font-medium text-ink">Format</h3><p>Your two main content formats (stored as "series"): Animated file (an animated post built around a file, config, prompt or rule set) and Animated scene (an animation where something happens). Detected from the headline of video / GIF posts; correct any post on its page and your choice is never overwritten.</p></div>
+          <div><h3 className="mb-1 font-medium text-ink">Format</h3><p>Your content formats (stored as &quot;series&quot;): {currentSeriesHelp()}. Detected from {currentAccount().seriesScheme === "lectures" ? "the video length and the headline" : "the headline of video / GIF posts"}; correct any post on its page and your choice is never overwritten.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Early performance and rank</h3><p>Impressions at 1h, 6h and 24h come only from stored snapshots: measured when a sync ran near that age, &asymp; when interpolated between two nearby snapshots, otherwise not captured. The latest-post card ranks a post among the last 10 at the same age when at least 3 older posts have a value for that age, otherwise by total impressions (labelled). Arrows: above the 75th / below the 25th percentile of the comparison posts; check = in between; nothing below 3 comparison posts.</p></div>
           <div><h3 className="mb-1 font-medium text-ink">Limits</h3><p>Posts under {MATURITY_HOURS}h old are flagged as still accumulating. Growth curves exist only from the moment tracking started. Tag-based breakdowns are correlations: topic, hook, format and timing overlap, and nothing here establishes cause.</p></div>
         </div>

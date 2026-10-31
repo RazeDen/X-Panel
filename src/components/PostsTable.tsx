@@ -28,7 +28,7 @@ const pick: Record<SortKey, (p: SlimPost, rates: boolean) => number | string | n
 };
 
 /** Inline format picker: saves right away as the owner's choice (same as the post page). */
-function FormatSelect({ post }: { post: SlimPost }) {
+function FormatSelect({ post, options }: { post: SlimPost; options: readonly string[] }) {
   const router = useRouter();
   const [value, setValue] = useState(post.series ?? "");
   const [state, setState] = useState<"idle" | "saving" | "error">("idle");
@@ -50,14 +50,14 @@ function FormatSelect({ post }: { post: SlimPost }) {
   return (
     <select aria-label="Format" title={title} value={value} disabled={state === "saving"} onChange={(e) => void save(e.target.value)}
       className={`h-7 cursor-pointer rounded-control border bg-transparent px-1.5 text-[13px] outline-none transition-colors hover:border-line-strong focus:border-ink2 ${state === "error" ? "border-bad text-bad" : "border-transparent"} ${value === "Other" ? "text-muted" : "text-ink2"}`}>
-      {!SERIES.includes(value as (typeof SERIES)[number]) && <option value={value}>{value || "—"}</option>}
-      {SERIES.map((s) => <option key={s} value={s}>{s}</option>)}
+      {!options.includes(value) && <option value={value}>{value || "—"}</option>}
+      {options.map((s) => <option key={s} value={s}>{s}</option>)}
     </select>
   );
 }
 
-/** `hideable` adds a last column with a hide (or restore, for hidden posts) button per row. */
-export function PostsTable({ posts, compact = false, hideable = false }: { posts: SlimPost[]; compact?: boolean; hideable?: boolean }) {
+/** `hideable` adds a last column with a hide (or restore, for hidden posts) button per row; `series` = the account's formats. */
+export function PostsTable({ posts, compact = false, hideable = false, series = SERIES }: { posts: SlimPost[]; compact?: boolean; hideable?: boolean; series?: readonly string[] }) {
   const router = useRouter();
   const { params, set } = useUrlState();
   const sort = (params.get("sort") as SortKey) in pick ? (params.get("sort") as SortKey) : "date";
@@ -101,7 +101,7 @@ export function PostsTable({ posts, compact = false, hideable = false }: { posts
               {head("rank", "#", false, "Rank by impressions among all your original posts")}
               {head("date", "Date", false)}
               <th className="th">Post</th>
-              {head("series", "Format", false, "Your content format: Animated file, Animated scene or Other")}
+              {head("series", "Format", false, `Your content format: ${series.slice(0, -1).join(", ")} or ${series[series.length - 1]}`)}
               {head("firstHour", "1h", true, "Impressions after the first hour (only when a sync captured it; ≈ = interpolated)")}
               {head("impressions", "Impr.")}
               {head("likes", "Likes")}
@@ -134,7 +134,7 @@ export function PostsTable({ posts, compact = false, hideable = false }: { posts
                     </div>
                   </div>
                 </td>
-                <td className="td whitespace-nowrap" onClick={(e) => e.stopPropagation()}><FormatSelect post={p} /></td>
+                <td className="td whitespace-nowrap" onClick={(e) => e.stopPropagation()}><FormatSelect post={p} options={series} /></td>
                 <td className="td num text-right">{p.firstHour === null || p.firstHour === undefined ? <span className="text-muted">—</span> : `${p.firstHourEstimated ? "≈" : ""}${fmtInt(p.firstHour)}`}</td>
                 <td className="td num text-right font-medium text-ink">{fmtInt(p.impressions)}</td>
                 <td className="td num text-right">{cell(p.likes, p.likeRate)}</td>

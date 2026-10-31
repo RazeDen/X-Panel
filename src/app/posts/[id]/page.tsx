@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { getDataset, getSnapshotPoints, getSnapshots } from "@/lib/data";
 import { ageMark, milestones } from "@/lib/analytics/growth";
 import { StatusIcon } from "@/components/StatusIcon";
-import { SERIES } from "@/lib/classify/rules";
 import { median, percentileRank } from "@/lib/stats";
 import { addDays, formatDateTime } from "@/lib/time";
 import { fmtCompact, fmtDuration, fmtInt, fmtMultiple, fmtPercentile, fmtRate, DASH } from "@/lib/format";
@@ -15,7 +14,7 @@ import { HideButton } from "@/components/HideButton";
 import { PostRows } from "@/components/PostCard";
 import type { Post } from "@/lib/analytics/types";
 import { requestAccountKey } from "@/lib/request-account";
-import { enterAccount } from "@/lib/accounts";
+import { currentSeries, currentSeriesHelp, enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -101,9 +100,9 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
         </Card>
 
         <div className="flex flex-col gap-4">
-          <Card title="Format" subtitle="Animated file, Animated scene or Other. Detected automatically; your choice is never overwritten.">
+          <Card title="Format" subtitle={`${currentSeriesHelp()}. Detected automatically; your choice is never overwritten.`}>
             {post.kind === "repost" ? <div className="text-xs text-muted">Reposts have no format.</div> : (
-              <TagEditor postId={post.id} initial={post.series ?? ""} options={SERIES} source={post.series_source} />
+              <TagEditor postId={post.id} initial={post.series ?? ""} options={currentSeries()} source={post.series_source} />
             )}
           </Card>
 
