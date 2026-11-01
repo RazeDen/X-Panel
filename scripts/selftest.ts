@@ -83,13 +83,6 @@ async function main() {
   check("series rules", deriveSeries("ANTHROPIC DESIGNER LEAKED A 6-RULE FILE THAT TURNS OPUS 5.5 INTO AN ART DIRECTOR", ["video"]) === "Animated file"
     && deriveSeries("CLAUDE ANIMATED JEV SORTING 3,412 LEADS IN 15.7 SECONDS - 1,440 FRAMES, 1 HTML FILE", ["video"]) === "Animated scene"
     && deriveSeries("ANTHROPIC ENGINEER LEAKED A FILE WHERE OPUS 5.5 BUILDS A 20-SECOND ANIMATION", ["photo"]) === "Other");
-  check("lecture format scheme: long video = Lectures, short file post, no scenes",
-    deriveSeries("Stanford just dropped a free 2-hour course on agents", ["video"], { scheme: "lectures", videoMs: 2 * 3600000 }) === "Lectures"
-    && deriveSeries("The creator of Claude Code shows the prompt file he uses", ["video"], { scheme: "lectures", videoMs: 22 * 60000 }) === "Lectures"
-    && deriveSeries("ANTHROPIC ENGINEER LEAKED THE FILE HE USES INSTEAD OF PROMPTS", ["video"], { scheme: "lectures", videoMs: 20000 }) === "Animated file"
-    && deriveSeries("CLAUDE ANIMATED JEV SORTING 3,412 LEADS", ["video"], { scheme: "lectures", videoMs: 25000 }) === "Other"
-    && deriveSeries("a 2-hour lecture", ["photo"], { scheme: "lectures", videoMs: null }) === "Other"
-    && deriveSeries("CLAUDE ANIMATED JEV SORTING 3,412 LEADS", ["video"], { videoMs: 2 * 3600000 }) === "Animated scene");
   check("format rules", deriveFormat({ article: false, isThreadRoot: false, mediaTypes: ["video"], hasLink: false }) === "Video" && deriveFormat({ article: true, isThreadRoot: false, mediaTypes: [], hasLink: false }) === "Article" && deriveFormat({ article: false, isThreadRoot: false, mediaTypes: [], hasLink: false }) === "Text");
 
   console.log("Empty database");
@@ -331,74 +324,6 @@ async function main() {
   check("MCP list_comments", lc.matched === 1 && lc.comments[0].status === "answered" && lc.comments[0].author === "@user7" && Array.isArray(lc.myRecentReplies) && typeof lc.counts.open === "number");
   await client2.close();
   await new Promise((r) => twServer.close(r));
-
-  console.log("Second account (twitterapi.io mock)");
-  const { accounts, withAccount } = await import("../src/lib/accounts");
-  const { syncAccount } = await import("../src/lib/x/run");
-  const { getMeta } = await import("../src/lib/db");
-  process.env.TWITTERAPI_ACCOUNTS = "Testtwo, bad handle!, @tester2";
-  check("extra accounts come from TWITTERAPI_ACCOUNTS", JSON.stringify(accounts().map((a) => `${a.key}:${a.source}`)) === JSON.stringify(["main:x", "testtwo:twitterapi", "tester2:twitterapi"]));
-  process.env.TWITTERAPI_ACCOUNTS = "Raytar";
-  const lecturesScheme = accounts().find((a) => a.key === "raytar")?.seriesScheme;
-  process.env.TWITTERAPI_ACCOUNTS = "Testtwo, bad handle!, @tester2";
-  check("formats per account: Raytar uses Animated file / Lectures / Other, the rest the main set", lecturesScheme === "lectures" && accounts().every((a) => a.seriesScheme === "scenes"));
-  const mainPosts = (db.prepare("SELECT COUNT(*) AS n FROM posts").get() as { n: number }).n;
-  const ago = (h: number) => new Date(Date.now() - h * 3600000).toUTCString();
-  const T2 = { id: "200", userName: "Testtwo", name: "Test Two", profilePicture: "https://pbs.twimg.com/t2.jpg" };
-  const tt = (id: string, h: number, extra: Record<string, unknown> = {}) => ({ id, text: `two ${id}`, createdAt: ago(h), viewCount: 500, likeCount: 10, replyCount: 1, retweetCount: 2, quoteCount: 0, bookmarkCount: 4, author: T2, ...extra });
-  let views = 500;
-  const twoCalls: string[] = [];
-  const twoServer = http.createServer((req, res) => {
-    const u = new URL(req.url ?? "/", "http://x");
-    twoCalls.push(u.pathname);
-    let body: unknown = { status: "error", msg: "unknown path" };
-    if (u.pathname === "/twitter/user/info") body = { status: "success", data: { ...T2, followers: 50, following: 5, statusesCount: 5 } };
-    if (u.pathname === "/twitter/user/last_tweets") body = u.searchParams.get("cursor") === "p2"
-      ? { status: "success", data: { tweets: [tt("204", 80, { isReply: true, inReplyToId: "203", inReplyToUserId: "200", inReplyToUsername: "Testtwo", conversationId: "203" })] }, has_next_page: false }
-      : { status: "success", has_next_page: true, next_cursor: "p2", data: { tweets: [
-        tt("201", 30, { extendedEntities: { media: [{ type: "video", media_url_https: "https://pbs.twimg.com/v.jpg", video_info: { duration_millis: 9000 } }] } }),
-        tt("202", 40, { quoted_tweet: { id: "999", author: { id: "7" } } }),
-        tt("203", 90),
-        tt("205", 95, { retweeted_tweet: { id: "888", author: { id: "7" } } }),
-        tt("206", 20, { author: { id: "7", userName: "someone" } }),
-        tt("208", 100, { text: "https://t.co/x", article: { title: "Long read", preview_text: "Start", cover_media_img_url: "https://pbs.twimg.com/c.jpg" } }),
-      ] } };
-    if (u.pathname === "/twitter/tweet/advanced_search") body = { status: "success", has_next_page: false, tweets: [tt("207", 1)] };
-    if (u.pathname === "/twitter/tweets") body = { status: "success", tweets: (u.searchParams.get("tweet_ids") ?? "").split(",").map((id) => tt(id, 30, { viewCount: views })) };
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify(body));
-  });
-  await new Promise<void>((r) => twoServer.listen(0, "127.0.0.1", r));
-  process.env.TWITTERAPI_IO_BASE = `http://127.0.0.1:${(twoServer.address() as AddressInfo).port}`;
-  const full2 = await withAccount("testtwo", () => syncAccount({}));
-  const two = withAccount("testtwo", () => ({ db: getDb(), data: loadPosts() }));
-  const row2 = (id: string) => two.db.prepare("SELECT * FROM posts WHERE x_id = ?").get(id) as import("../src/lib/db").PostRow;
-  check("second account has its own database", two.db !== db && full2.mode === "full" && full2.inserted === 6 && (db.prepare("SELECT COUNT(*) AS n FROM posts").get() as { n: number }).n === mainPosts);
-  check("timeline mapped: kinds, media, other authors dropped", row2("201").kind === "post" && row2("201").media_preview === "https://pbs.twimg.com/v.jpg" && row2("201").video_duration_ms === 9000 && row2("202").kind === "quote"
-    && row2("204").kind === "reply" && row2("204").is_self_reply === 1 && row2("205").kind === "repost" && !row2("206")
-    && row2("208").article_title === "Long read" && row2("208").media_preview === "https://pbs.twimg.com/c.jpg" && !two.data.originals.some((p) => p.x_id === "208"));
-  check("public metrics only: impressions = viewCount, private stay null", row2("201").impressions === 500 && row2("201").bookmarks === 4 && row2("201").profile_visits === null && row2("201").video_views === null && row2("205").impressions === null);
-  check("profile and followers stored per account", withAccount("testtwo", () => getMeta("account_username")) === "Testtwo" && getMeta("account_username") === "tester"
-    && (two.db.prepare("SELECT followers FROM account_snapshots ORDER BY id DESC").get() as { followers: number }).followers === 50);
-  views = 700;
-  twoCalls.length = 0;
-  const inc2 = await withAccount("testtwo", () => syncAccount({ mode: "incremental", days: 2 }));
-  check("incremental: one search for new posts + refresh by id, no timeline paging", inc2.mode === "incremental" && inc2.inserted === 1 && row2("207")?.kind === "post"
-    && row2("201").impressions === 700 && twoCalls.join(",") === "/twitter/user/info,/twitter/tweet/advanced_search,/twitter/tweets");
-  check("refresh appends a snapshot (history kept)", (two.db.prepare("SELECT COUNT(*) AS n FROM metric_snapshots WHERE post_id = ?").get(row2("201").id) as { n: number }).n === 2);
-  const mcp3 = createMcpServer({ sync: fakeSync });
-  const [ct3, st3] = InMemoryTransport.createLinkedPair();
-  await mcp3.connect(st3);
-  const client3 = new Client({ name: "selftest", version: "1" });
-  await client3.connect(ct3);
-  const tool3 = async (name: string, args: Record<string, unknown>) => JSON.parse(((await client3.callTool({ name, arguments: args })) as ToolResult).content[0].text);
-  const lp2 = await tool3("list_posts", { range: "all", account: "testtwo" });
-  const lpMain = await tool3("list_posts", { range: "all" });
-  check("MCP tools take an account", lp2.posts.every((p: { url: string }) => p.url.includes("/Testtwo/")) && lp2.matched === two.data.originals.length + 1 && lpMain.posts.every((p: { url: string }) => p.url.includes("/tester/")));
-  check("MCP rejects an unknown account", ((await client3.callTool({ name: "get_overview", arguments: { account: "nobody" } })) as ToolResult).isError === true);
-  await client3.close();
-  await new Promise((r) => twoServer.close(r));
-  withAccount("testtwo", () => getDb().close());
 
   db.close();
   fs.rmSync(tmp, { recursive: true, force: true });

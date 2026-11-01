@@ -1,16 +1,14 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
-import { currentAccount } from "./accounts";
 
 /**
- * SQLite persistence. One file per account (src/lib/accounts.ts): data/analytics.db for the main
- * account (override with ANALYTICS_DB), data/analytics-<handle>.db for each extra one.
+ * SQLite persistence. One file: data/analytics.db (override with ANALYTICS_DB).
  * Migrations are plain SQL, applied in order and recorded in schema_migrations.
  * Nothing in this project ever deletes posts or snapshots.
  */
 export function dbPath(): string {
-  return currentAccount().dbFile;
+  return path.resolve(/*turbopackIgnore: true*/ process.cwd(), process.env.ANALYTICS_DB || "data/analytics.db");
 }
 
 const MIGRATIONS: { id: number; name: string; sql: string }[] = [
@@ -234,14 +232,11 @@ ALTER TABLE comments ADD COLUMN my_reply_url TEXT;
 ];
 
 type DB = Database.Database;
-const g = globalThis as unknown as { __xaDbs?: Map<string, DB> };
+const g = globalThis as unknown as { __xaDb?: { path: string; db: DB } };
 
-/** The current account's database (opened once per file and kept open). */
 export function getDb(): DB {
   const file = dbPath();
-  const dbs = (g.__xaDbs ??= new Map());
-  const open = dbs.get(file);
-  if (open?.open) return open;
+  if (g.__xaDb && g.__xaDb.path === file && g.__xaDb.db.open) return g.__xaDb.db;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new Database(file);
   // DELETE journal keeps the database a single portable file (safe on synced / network folders).
@@ -249,7 +244,7 @@ export function getDb(): DB {
   db.pragma("foreign_keys = ON");
   db.pragma("busy_timeout = 5000");
   migrate(db);
-  dbs.set(file, db);
+  g.__xaDb = { path: file, db };
   return db;
 }
 

@@ -3,6 +3,7 @@ import { getDataset, getSnapshotPoints } from "@/lib/data";
 import { applyFilters, dateWindow, parseFilters, previousWindow, inWindow } from "@/lib/filters";
 import { groupPosts, summarize } from "@/lib/analytics/summary";
 import { recentCard } from "@/lib/analytics/growth";
+import { SERIES } from "@/lib/classify/rules";
 import { buildSeries } from "@/lib/analytics/series";
 import { pctChange } from "@/lib/stats";
 import { addDays, DOW_NAMES, today, weekOfDate, prevWeek, formatDateTime } from "@/lib/time";
@@ -14,13 +15,10 @@ import { FilterBar } from "@/components/filters";
 import { PostCard } from "@/components/PostCard";
 import { LatestPostCard } from "@/components/LatestPostCard";
 import type { Post, Summary } from "@/lib/analytics/types";
-import { requestAccountKey } from "@/lib/request-account";
-import { enterAccount, currentSeries } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
 export default async function Overview({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  enterAccount(await requestAccountKey());
   const ds = getDataset();
   if (ds.empty) return <EmptyDatabase />;
   const now = new Date();
@@ -88,8 +86,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const hrefFor = (i: number) => { const q = new URLSearchParams(keep); if (i) q.set("lp", String(i)); const s = q.toString(); return s ? `/?${s}` : "/"; };
 
   // The owner's two main series against everything else, in the selected range.
-  const series = currentSeries();
-  const seriesRows = groupPosts(posts, (p) => p.series, [...series]).filter((r) => series.includes(r.key));
+  const seriesRows = groupPosts(posts, (p) => p.series, [...SERIES]).filter((r) => SERIES.includes(r.key as (typeof SERIES)[number]));
 
   return (
     <>

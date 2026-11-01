@@ -7,8 +7,6 @@ import { fmtCompact, fmtRate } from "@/lib/format";
 import { Card, EmptyDatabase, Notice, PageHeader } from "@/components/ui";
 import { FilterBar } from "@/components/filters";
 import { HBars, type HBarRow } from "@/components/HBars";
-import { requestAccountKey } from "@/lib/request-account";
-import { currentSeries, enterAccount } from "@/lib/accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +19,6 @@ function rank(rows: GroupRow[], pick: (r: GroupRow) => number | null, display: (
 }
 
 export default async function PatternsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  enterAccount(await requestAccountKey());
   const ds = getDataset();
   if (ds.empty) return <EmptyDatabase />;
   const f = parseFilters(await searchParams, { range: "90d" });
@@ -30,7 +27,7 @@ export default async function PatternsPage({ searchParams }: { searchParams: Pro
   const overall = summarize(posts);
   const q = (extra: Record<string, string>) => `/posts${toQuery({ range: f.range, ...extra })}`;
   const g = (fn: (p: Post) => string | null, order?: string[]) => groupPosts(posts, fn, order);
-  const format = g((p) => p.series, [...currentSeries()]);
+  const format = g((p) => p.series, ["Animated file", "Animated scene", "Other"]);
   const bucket = g((p) => p.bucket, TIME_BUCKETS.map((b) => b.label)), dow = g((p) => p.dowName, DOW_NAMES);
 
   const imp = (r: GroupRow) => r.medianImpressions;

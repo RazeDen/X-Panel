@@ -1,11 +1,10 @@
 import { redact } from "../env";
 
 /**
- * Minimal twitterapi.io client: comments for every account, and posts / profile of the extra accounts
- * (server-side only, never import from a client component). Pricing (2026-10): $0.15 per 1,000 tweets
- * returned (author profiles included), $0.18 per 1,000 profiles, and at least $0.00015 per request
- * even when it returns nothing - so callers only ask when something can be new. Re-reads are billed
- * again (no daily de-duplication like the X API).
+ * Minimal twitterapi.io client for reading comments and the owner's latest replies (server-side only,
+ * never import from a client component). Pricing (2026-10): $0.15 per 1,000 tweets returned, author
+ * profiles included, and at least $0.00015 per request even when it returns nothing - so callers only
+ * ask when something can be new.
  */
 export interface TwitterApiUser {
   id?: string;
@@ -13,26 +12,8 @@ export interface TwitterApiUser {
   name?: string;
   profilePicture?: string;
 }
-export interface TwitterApiMedia {
-  type?: string;
-  media_url_https?: string;
-  video_info?: { duration_millis?: number };
-}
 export interface TwitterApiTweet {
   id: string;
-  type?: string;
-  viewCount?: number;
-  retweetCount?: number;
-  quoteCount?: number;
-  bookmarkCount?: number;
-  lang?: string;
-  entities?: { urls?: { expanded_url?: string; url?: string }[]; media?: TwitterApiMedia[] };
-  extendedEntities?: { media?: TwitterApiMedia[] };
-  extended_entities?: { media?: TwitterApiMedia[] };
-  /** X Article (long-form post): title, start of the text and cover image. */
-  article?: { title?: string; preview_text?: string; cover_media_img_url?: string } | null;
-  quoted_tweet?: TwitterApiTweet | null;
-  retweeted_tweet?: TwitterApiTweet | null;
   url?: string;
   text?: string;
   createdAt?: string;
