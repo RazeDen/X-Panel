@@ -298,7 +298,7 @@ async function main() {
   const open = listComments("open");
   check("comment shows its post and author, reply mentions stripped", open.length === 1 && open[0].parent?.xId === "101" && open[0].author.username === "user7" && open[0].text.startsWith("comment 901") && stripReplyMentions("@a @b hi") === "hi");
   const msg = draftMessage(open[0]);
-  check("draft text has the post and the comment", msg.startsWith("Post:\npost 101") && msg.includes("Comment by @user7:\ncomment 901"));
+  check("draft text has only the post and the comment", msg.startsWith("Post:\npost 101") && msg.includes("\n\nComment:\ncomment 901") && !msg.includes("@user7") && msg.split("\n\n").length === 2);
   check("unanswered comments expire after 30 hours", commentCounts(new Date(Date.now() + 30 * 3600000)).open === 0 && commentCounts(new Date(Date.now() + 30 * 3600000)).expired === 1 && commentCounts().open === 1);
   check("hide and restore a comment", setCommentHidden("901", true) && commentCounts().hidden === 1 && commentCounts().open === 0 && setCommentHidden("901", false) && commentCounts().open === 1);
   const rc = await checkOwnReplies();

@@ -96,17 +96,13 @@ function styleSamples(limit = 8): string[] {
 }
 
 /**
- * What "Draft in Claude" copies to the clipboard: the post, the owner's reply it is under (if any) and
- * the comment. The owner pastes it into a Claude chat of their own whose instructions set the voice and
- * the rules (owner's choice 2026-10-29), so drafting costs nothing and nothing is sent from here.
+ * What "Draft in ChatGPT" copies to the clipboard: only the post and the comment (owner's request
+ * 2026-11-18). The owner pastes it into a ChatGPT chat of their own whose instructions set the voice
+ * and the rules, so drafting costs nothing and nothing is sent from here.
  */
 export function draftMessage(c: CommentView): string {
   const root = c.root ?? (c.parent && !c.parent.isReply ? c.parent : null);
-  const parts: string[] = [];
-  parts.push(`Post:\n${root ? root.text.slice(0, 1500) : "(not available)"}`);
-  if (c.parent?.isReply) parts.push(`My reply they answered:\n${stripReplyMentions(c.parent.text).slice(0, 600)}`);
-  parts.push(`Comment by @${c.author.username ?? "someone"}:\n${c.text.slice(0, 1000)}`);
-  return parts.join("\n\n");
+  return `Post:\n${root ? root.text.slice(0, 1500) : "(not available)"}\n\nComment:\n${c.text.slice(0, 1000)}`;
 }
 
 export { styleSamples };

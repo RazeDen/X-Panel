@@ -24,7 +24,7 @@ function copyText(text: string): boolean {
 }
 
 /**
- * Actions on one comment: copy the post + comment for the owner's own Claude chat (nothing is sent
+ * Actions on one comment: copy the post + comment for the owner's own ChatGPT chat (nothing is sent
  * from here), open it on X to answer, and hide / restore it. Hiding never deletes anything.
  */
 export function CommentActions({ id, url, draft, hidden }: { id: string; url: string; draft: string | null; hidden: boolean }) {
@@ -52,8 +52,8 @@ export function CommentActions({ id, url, draft, hidden }: { id: string; url: st
     <div className="flex flex-wrap items-center gap-2">
       {draft && (
         <button type="button" className="btn btn-primary" onClick={copyDraft}
-          title="Copies the post and this comment. Paste it (Ctrl+V) into your Claude chat for replies.">
-          Draft in Claude
+          title="Copies the post and this comment. Paste it (Cmd+V) into your ChatGPT chat for a reply.">
+          Draft in ChatGPT
         </button>
       )}
       <a href={url} target="_blank" rel="noreferrer" className="btn">Open on X &#8599;</a>
@@ -61,7 +61,7 @@ export function CommentActions({ id, url, draft, hidden }: { id: string; url: st
         title={state === "error" ? "Could not save - try again" : hidden ? "Show it in the list again" : "Spam or nothing to answer: remove it from the list (kept in the database)"}>
         {state === "saving" ? "Saving…" : hidden ? "Restore" : "Hide"}
       </button>
-      {copied !== null && <span className="text-xs text-muted" role="status">{copied ? "Copied - paste it into your Claude chat" : "Could not copy - try again"}</span>}
+      {copied !== null && <span className="text-xs text-muted" role="status">{copied ? "Copied - paste it into your ChatGPT chat" : "Could not copy - try again"}</span>}
     </div>
   );
 }
